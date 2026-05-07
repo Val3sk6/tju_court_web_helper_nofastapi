@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TJU 羽毛球抢场网页助手</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero card">
+      <div>
+        <p class="eyebrow">Local Web Console</p>
+        <h1>🏸 TJU 羽毛球抢场网页助手</h1>
+        <p class="subtitle">网页负责配置与实时日志，本地 Python 后端负责请求、校时和并发执行。</p>
+      </div>
+      <div class="status-pill" id="statusPill">未启动</div>
+    </section>
+
+    <section class="grid">
+      <form class="card panel" id="configForm">
+        <h2>基础配置</h2>
+
+        <label>
+          Cookie
+          <textarea id="cookie" placeholder="粘贴完整 Cookie，例如：WXOpenId=...; LoginSource=0; ..."></textarea>
+        </label>
+
+        <div class="two-col">
+          <label>
+            模式
+            <select id="mode">
+              <option value="stable" selected>stable：稳健</option>
+              <option value="fast">fast：极速</option>
+            </select>
+          </label>
+          <label>
+            放场时间
+            <input id="openTime" value="21:00:00" />
+          </label>
+        </div>
+
+        <div class="two-col">
+          <label>
+            目标日期
+            <input id="targetDate" type="date" />
+          </label>
+          <label>
+            并发线程，可空
+            <input id="threads" type="number" min="1" max="20" placeholder="stable=6 / fast=10" />
+          </label>
+        </div>
+
+        <div class="two-col">
+          <label>
+            每线程尝试，可空
+            <input id="attempts" type="number" min="1" max="80" placeholder="stable=20 / fast=40" />
+          </label>
+          <label>
+            请求超时秒
+            <input id="timeout" type="number" value="10" min="1" max="30" />
+          </label>
+        </div>
+
+        <div class="two-col">
+          <label>
+            VenueNo
+            <input id="venueNo" value="005" />
+          </label>
+          <label>
+            FieldTypeNo
+            <input id="fieldTypeNo" value="017" />
+          </label>
+        </div>
+
+        <label class="checkline">
+          <input id="dryRun" type="checkbox" />
+          测试模式：只跑流程，不真正提交预约请求
+        </label>
+
+        <h2>候补场地顺序</h2>
+        <div id="fields"></div>
+        <button type="button" class="ghost" id="addFieldBtn">+ 添加场地</button>
+
+        <div class="actions">
+          <button type="button" id="checkBtn">预检 Cookie</button>
+          <button type="button" class="primary" id="startBtn">开始等待/抢场</button>
+          <button type="button" class="danger" id="stopBtn" disabled>停止</button>
+        </div>
+      </form>
+
+      <section class="card logs-card">
+        <div class="logs-head">
+          <div>
+            <h2>实时日志</h2>
+            <p>成功后请立即打开微信完成支付。</p>
+          </div>
+          <button type="button" class="ghost small" id="clearLogsBtn">清空</button>
+        </div>
+        <pre id="logs"></pre>
+      </section>
+    </section>
+  </main>
+
+  <template id="fieldTemplate">
+    <div class="field-row">
+      <input class="field-no" placeholder="FieldNo，如 YMQX007" />
+      <input class="field-name" placeholder="场地名，如 羽毛球07" />
+      <input class="begin-time" placeholder="09:00" />
+      <input class="end-time" placeholder="10:00" />
+      <button type="button" class="remove">删除</button>
+    </div>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
