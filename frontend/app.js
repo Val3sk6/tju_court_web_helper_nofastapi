@@ -7,15 +7,67 @@ const statusPill = $('statusPill');
 const logFilter = $('logFilter');
 const logMeta = $('logMeta');
 const autoScroll = $('autoScroll');
+const presetSelect = $('presetSelect');
+const importConfigFile = $('importConfigFile');
+
+const STORAGE_KEY = 'tju-helper-config-v1';
+const PRESETS_KEY = 'tju-helper-presets-v1';
+const CONFIG_VERSION = 1;
+const BUILTIN_PRESETS = [
+  {
+    id: 'builtin-morning',
+    name: '内置：上午 09-10 点',
+    config: { fields: [
+      { FieldNo: 'YMQX007', FieldName: '羽毛球07', BeginTime: '09:00', Endtime: '10:00' },
+      { FieldNo: 'YMQX008', FieldName: '羽毛球08', BeginTime: '09:00', Endtime: '10:00' },
+      { FieldNo: 'YMQX009', FieldName: '羽毛球09', BeginTime: '09:00', Endtime: '10:00' }
+    ] }
+  },
+  {
+    id: 'builtin-evening',
+    name: '内置：晚上 20-21 点',
+    config: { fields: [
+      { FieldNo: 'YMQX007', FieldName: '羽毛球07', BeginTime: '20:00', Endtime: '21:00' },
+      { FieldNo: 'YMQX008', FieldName: '羽毛球08', BeginTime: '20:00', Endtime: '21:00' },
+      { FieldNo: 'YMQX009', FieldName: '羽毛球09', BeginTime: '20:00', Endtime: '21:00' }
+    ] }
+  }
+];
 
 let currentJobId = null;
 let eventSource = null;
 let logItems = [];
+let configSaveTimer = null;
+let isRestoringConfig = false;
 
 function todayPlus(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+
+function defaultFields() {
+  return [
+    { FieldNo: 'YMQX007', FieldName: '羽毛球07', BeginTime: '09:00', Endtime: '10:00' },
+    { FieldNo: 'YMQX008', FieldName: '羽毛球08', BeginTime: '09:00', Endtime: '10:00' },
+    { FieldNo: 'YMQX009', FieldName: '羽毛球09', BeginTime: '09:00', Endtime: '10:00' }
+  ];
+}
+
+function defaultConfig() {
+  return {
+    mode: 'stable',
+    open_time: '21:00:00',
+    target_date: todayPlus(7),
+    threads: '',
+    attempts: '',
+    timeout: '10',
+    venue_no: '005',
+    field_type_no: '017',
+    dry_run: false,
+    fields: defaultFields()
+  };
 }
 
 function setStatus(text, tone = 'info') {
@@ -73,6 +125,7 @@ function updateFieldOrder() {
     row.querySelector('.move-up').disabled = index === 0;
     row.querySelector('.move-down').disabled = index === rows.length - 1;
   });
+  scheduleConfigSave();
 }
 
 function addField(data = {}, afterRow = null) {
@@ -102,14 +155,183 @@ function addField(data = {}, afterRow = null) {
   updateFieldOrder();
 }
 
-function collectFields() {
+function allFieldRows() {
   return [...fieldsBox.querySelectorAll('.field-row')].map(row => ({
-    FieldNo: row.querySelector('.field-no').value.trim(),
-    FieldName: row.querySelector('.field-name').value.trim(),
-    BeginTime: row.querySelector('.begin-time').value.trim(),
-    Endtime: row.querySelector('.end-time').value.trim(),
+    ...fieldDataFromRow(row),
     Price: '0'
-  })).filter(f => f.FieldNo && f.FieldName && f.BeginTime && f.Endtime);
+  }));
+}
+
+function collectFields() {
+  return allFieldRows().filter(f => f.FieldNo && f.FieldName && f.BeginTime && f.Endtime);
+}
+
+
+function configFromForm() {
+  return {
+    version: CONFIG_VERSION,
+    mode: $('mode').value,
+    open_time: $('openTime').value.trim(),
+    target_date: $('targetDate').value,
+    threads: $('threads').value.trim(),
+    attempts: $('attempts').value.trim(),
+    timeout: $('timeout').value.trim() || '10',
+    venue_no: $('venueNo').value.trim(),
+    field_type_no: $('fieldTypeNo').value.trim(),
+    dry_run: $('dryRun').checked,
+    fields: allFieldRows()
+  };
+}
+
+function applyConfig(config = {}, options = {}) {
+  const base = { ...defaultConfig(), ...config };
+  isRestoringConfig = true;
+  $('mode').value = base.mode || 'stable';
+  $('openTime').value = base.open_time || '21:00:00';
+  $('targetDate').value = base.target_date || todayPlus(7);
+  $('threads').value = base.threads ?? '';
+  $('attempts').value = base.attempts ?? '';
+  $('timeout').value = base.timeout || '10';
+  $('venueNo').value = base.venue_no || '005';
+  $('fieldTypeNo').value = base.field_type_no || '017';
+  $('dryRun').checked = Boolean(base.dry_run);
+  if (options.includeCookie) $('cookie').value = base.cookie || '';
+  fieldsBox.textContent = '';
+  const fields = Array.isArray(base.fields) && base.fields.length ? base.fields : defaultFields();
+  fields.forEach(field => addField(field));
+  updateFieldOrder();
+  isRestoringConfig = false;
+  if (options.save !== false) saveConfig();
+}
+
+function saveConfig() {
+  if (isRestoringConfig) return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(configFromForm()));
+}
+
+function scheduleConfigSave() {
+  if (isRestoringConfig) return;
+  clearTimeout(configSaveTimer);
+  configSaveTimer = setTimeout(saveConfig, 180);
+}
+
+function loadSavedConfig() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  return JSON.parse(raw);
+}
+
+function userPresets() {
+  const raw = localStorage.getItem(PRESETS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveUserPresets(presets) {
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+}
+
+function renderPresetOptions() {
+  const presets = userPresets();
+  presetSelect.textContent = '';
+  for (const preset of BUILTIN_PRESETS) {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent = preset.name;
+    presetSelect.appendChild(option);
+  }
+  for (const preset of presets) {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent = `我的：${preset.name}`;
+    presetSelect.appendChild(option);
+  }
+}
+
+function selectedPreset() {
+  const id = presetSelect.value;
+  return BUILTIN_PRESETS.find(preset => preset.id === id) || userPresets().find(preset => preset.id === id);
+}
+
+function loadPreset() {
+  const preset = selectedPreset();
+  if (!preset) return appendLog('请选择一个可加载的预设。', 'warn');
+  applyConfig({ ...configFromForm(), ...preset.config, fields: preset.config.fields }, { save: true });
+  appendLog(`已加载预设：${preset.name}`, 'success');
+}
+
+function savePreset() {
+  const name = window.prompt('请输入预设名称（不会保存 Cookie）：');
+  if (!name || !name.trim()) return;
+  const presets = userPresets();
+  const preset = {
+    id: `user-${Date.now()}`,
+    name: name.trim(),
+    config: configFromForm()
+  };
+  presets.push(preset);
+  saveUserPresets(presets);
+  renderPresetOptions();
+  presetSelect.value = preset.id;
+  appendLog(`已保存预设：${preset.name}`, 'success');
+}
+
+function deletePreset() {
+  const id = presetSelect.value;
+  if (!id || id.startsWith('builtin-')) return appendLog('内置预设不能删除。', 'warn');
+  const presets = userPresets();
+  const preset = presets.find(item => item.id === id);
+  if (!preset) return;
+  if (!window.confirm(`删除预设“${preset.name}”？`)) return;
+  saveUserPresets(presets.filter(item => item.id !== id));
+  renderPresetOptions();
+  appendLog(`已删除预设：${preset.name}`, 'warn');
+}
+
+function exportConfig() {
+  const data = {
+    exported_at: new Date().toISOString(),
+    app: 'tju-court-web-helper',
+    config: configFromForm()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `tju-helper-config-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  appendLog('已导出配置（不包含 Cookie）。', 'success');
+}
+
+function importConfig(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(String(reader.result || '{}'));
+      const imported = data.config || data;
+      applyConfig(imported, { save: true });
+      appendLog('配置导入成功（Cookie 未导入）。', 'success');
+    } catch (e) {
+      appendLog(`❌ 配置导入失败：${e.message}`, 'error');
+    } finally {
+      importConfigFile.value = '';
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function resetConfig() {
+  if (!window.confirm('恢复默认配置？当前非敏感配置会被覆盖，Cookie 不会清空。')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  applyConfig(defaultConfig(), { save: true });
+  appendLog('已恢复默认配置。', 'warn');
 }
 
 function payload() {
@@ -207,7 +429,16 @@ $('addFieldBtn').addEventListener('click', () => addField());
 $('clearLogsBtn').addEventListener('click', resetLogs);
 $('copyLogsBtn').addEventListener('click', copyLogs);
 $('downloadLogsBtn').addEventListener('click', downloadLogs);
+$('loadPresetBtn').addEventListener('click', loadPreset);
+$('savePresetBtn').addEventListener('click', savePreset);
+$('deletePresetBtn').addEventListener('click', deletePreset);
+$('exportConfigBtn').addEventListener('click', exportConfig);
+$('importConfigBtn').addEventListener('click', () => importConfigFile.click());
+$('resetConfigBtn').addEventListener('click', resetConfig);
+importConfigFile.addEventListener('change', () => importConfig(importConfigFile.files[0]));
 logFilter.addEventListener('change', applyLogFilter);
+document.getElementById('configForm').addEventListener('input', scheduleConfigSave);
+document.getElementById('configForm').addEventListener('change', scheduleConfigSave);
 
 $('checkBtn').addEventListener('click', async () => {
   $('checkBtn').disabled = true;
@@ -287,8 +518,11 @@ $('stopBtn').addEventListener('click', async () => {
 // Defaults
 setStatus('未启动', 'info');
 updateLogMeta();
-$('targetDate').value = todayPlus(7);
-addField({ FieldNo: 'YMQX007', FieldName: '羽毛球07', BeginTime: '09:00', Endtime: '10:00' });
-addField({ FieldNo: 'YMQX008', FieldName: '羽毛球08', BeginTime: '09:00', Endtime: '10:00' });
-addField({ FieldNo: 'YMQX009', FieldName: '羽毛球09', BeginTime: '09:00', Endtime: '10:00' });
-appendLog('页面已就绪。建议先勾选“测试模式”跑一遍流程，再取消测试模式实战。', 'info');
+renderPresetOptions();
+try {
+  applyConfig(loadSavedConfig() || defaultConfig(), { save: false });
+} catch (e) {
+  applyConfig(defaultConfig(), { save: false });
+  appendLog('本地保存的配置无法读取，已恢复默认配置。', 'warn');
+}
+appendLog('页面已就绪。非敏感配置会自动保存；建议先勾选“测试模式”跑一遍流程。', 'info');

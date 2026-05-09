@@ -96,6 +96,25 @@
           </span>
         </label>
 
+        <div class="config-tools">
+          <div>
+            <strong>配置保存与预设</strong>
+            <small>自动保存非敏感配置；导入导出默认不包含 Cookie。</small>
+          </div>
+          <div class="preset-row">
+            <select id="presetSelect" aria-label="选择配置预设"></select>
+            <button type="button" class="ghost small" id="loadPresetBtn">加载</button>
+            <button type="button" class="ghost small" id="savePresetBtn">存为预设</button>
+            <button type="button" class="ghost small" id="deletePresetBtn">删除预设</button>
+          </div>
+          <div class="preset-row">
+            <button type="button" class="secondary small" id="exportConfigBtn">导出配置</button>
+            <button type="button" class="ghost small" id="importConfigBtn">导入配置</button>
+            <button type="button" class="ghost small" id="resetConfigBtn">恢复默认</button>
+            <input id="importConfigFile" type="file" accept="application/json,.json" hidden />
+          </div>
+        </div>
+
         <div class="section-head field-head">
           <span class="section-mark">02</span>
           <div>
