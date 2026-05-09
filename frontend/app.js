@@ -387,19 +387,34 @@ async function getJson(url) {
   return readJsonResponse(res);
 }
 
+function statusTextFromJob(data) {
+  const status = data.status || (data.result && data.result.status);
+  if (status === 'success') return ['抢场成功', 'success'];
+  if (status === 'login' || status === 'cookie_invalid') return ['Cookie 异常', 'error'];
+  if (status === 'invalid') return ['配置无效', 'error'];
+  if (status === 'stopped') return ['已停止', 'stopped'];
+  if (status === 'failed') return ['未成功', 'error'];
+  if (data.alive || data.phase === 'running') return ['运行中', 'running'];
+  return ['已结束', 'info'];
+}
+
 async function refreshFinalStatus() {
   if (!currentJobId) return;
   try {
     const data = await getJson(`/api/status/${currentJobId}`);
-    const status = data.result && data.result.status;
-    if (status === 'success') setStatus('抢场成功', 'success');
-    else if (status === 'login' || status === 'cookie_invalid') setStatus('Cookie 异常', 'error');
-    else if (status === 'stopped') setStatus('已停止', 'stopped');
-    else if (status === 'failed') setStatus('未成功', 'error');
-    else setStatus('已结束', 'info');
+    setStatus(...statusTextFromJob(data));
   } catch (e) {
     setStatus('已结束', 'info');
   }
+}
+
+function applyPrecheckStatus(data) {
+  const status = data.status || (data.ok ? 'valid' : 'invalid_cookie');
+  if (status === 'valid') setStatus('Cookie 可用', 'success');
+  else if (status === 'network_unknown') setStatus('预检未知', 'running');
+  else if (status === 'config_invalid') setStatus('配置无效', 'error');
+  else setStatus('Cookie 异常', 'error');
+  if (data.reason) appendLog(`预检结果：${data.reason}`, status === 'valid' ? 'success' : status === 'network_unknown' ? 'warn' : 'error');
 }
 
 async function copyLogs() {
@@ -449,7 +464,7 @@ $('checkBtn').addEventListener('click', async () => {
     appendLog('开始 Cookie 预检...', 'info');
     const data = await postJson('/api/check-cookie', p);
     for (const item of data.messages || []) appendLog(item.message, item.level);
-    setStatus(data.ok ? 'Cookie 可用' : 'Cookie 异常', data.ok ? 'success' : 'error');
+    applyPrecheckStatus(data);
   } catch (e) {
     appendLog(`❌ ${e.message}`, 'error');
     setStatus('预检失败', 'error');
@@ -471,6 +486,7 @@ $('startBtn').addEventListener('click', async () => {
     const data = await postJson('/api/start', p);
     currentJobId = data.job_id;
     appendLog(`任务已启动：${currentJobId}`, 'info');
+    if (data.job) appendLog(`任务状态：${data.job.status} / ${data.job.phase}`, 'info');
 
     eventSource = new EventSource(`/api/logs/${currentJobId}`);
     eventSource.onmessage = (event) => {
@@ -506,9 +522,10 @@ $('stopBtn').addEventListener('click', async () => {
   if (!currentJobId) return;
   try {
     $('stopBtn').disabled = true;
-    await postJson(`/api/stop/${currentJobId}`, {});
+    const data = await postJson(`/api/stop/${currentJobId}`, {});
     appendLog('已发送停止指令。', 'warn');
-    setStatus('停止中', 'running');
+    if (data.job) setStatus(...statusTextFromJob(data.job));
+    else setStatus('停止中', 'running');
   } catch (e) {
     appendLog(`❌ 停止失败：${e.message}`, 'error');
     $('stopBtn').disabled = false;

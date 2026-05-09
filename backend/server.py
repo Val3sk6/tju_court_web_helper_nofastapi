@@ -30,6 +30,35 @@ class Job:
     created_at: datetime
     finished_at: Optional[datetime] = None
 
+    def status(self) -> str:
+        return str(self.booker.result.get("status") or "idle")
+
+    def phase(self) -> str:
+        status = self.status()
+        if self.thread.is_alive():
+            return "running"
+        if status == "success":
+            return "success"
+        if status in {"login", "cookie_invalid", "invalid"}:
+            return "blocked"
+        if status == "stopped":
+            return "stopped"
+        return "finished"
+
+    def snapshot(self, job_id: str) -> Dict[str, object]:
+        finished_at = self.finished_at
+        end = finished_at or datetime.now()
+        return {
+            "job_id": job_id,
+            "alive": self.thread.is_alive(),
+            "status": self.status(),
+            "phase": self.phase(),
+            "result": self.booker.result,
+            "created_at": self.created_at.isoformat(timespec="seconds"),
+            "finished_at": finished_at.isoformat(timespec="seconds") if finished_at else None,
+            "duration_seconds": round((end - self.created_at).total_seconds(), 3),
+        }
+
 
 JOBS: Dict[str, Job] = {}
 JOBS_LOCK = threading.Lock()
@@ -168,8 +197,14 @@ class Handler(BaseHTTPRequestHandler):
                     messages.append({"level": level, "message": msg})
 
                 booker = CourtBooker(build_config(payload), logger)
-                ok = booker.cookie_check()
-                return self._send_json({"ok": ok, "messages": messages})
+                result = booker.cookie_precheck()
+                return self._send_json({
+                    "ok": result.ok,
+                    "status": result.status,
+                    "reason": result.reason,
+                    "http_status": result.http_status,
+                    "messages": messages,
+                })
 
             if path == "/api/start":
                 payload = self._read_json()
@@ -191,10 +226,11 @@ class Handler(BaseHTTPRequestHandler):
                                 job.finished_at = datetime.now()
 
                 thread = threading.Thread(target=run_job, daemon=True)
+                job = Job(booker=booker, queue=log_q, thread=thread, created_at=datetime.now())
                 with JOBS_LOCK:
-                    JOBS[job_id] = Job(booker=booker, queue=log_q, thread=thread, created_at=datetime.now())
+                    JOBS[job_id] = job
                 thread.start()
-                return self._send_json({"job_id": job_id})
+                return self._send_json({"job_id": job_id, "job": job.snapshot(job_id)})
 
             if path.startswith("/api/stop/"):
                 job_id = path.rsplit("/", 1)[-1]
@@ -202,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not job:
                     return self._send_json({"detail": "job not found"}, 404)
                 job.booker.stop()
-                return self._send_json({"ok": True})
+                return self._send_json({"ok": True, "job": job.snapshot(job_id)})
 
             return self._send_json({"detail": "not found"}, 404)
         except (ValueError, json.JSONDecodeError) as exc:
@@ -222,7 +258,7 @@ class Handler(BaseHTTPRequestHandler):
         job = get_job(job_id)
         if not job:
             return self._send_json({"detail": "job not found"}, 404)
-        return self._send_json({"alive": job.thread.is_alive(), "result": job.booker.result})
+        return self._send_json(job.snapshot(job_id))
 
     def _serve_logs(self, job_id: str):
         job = get_job(job_id)

@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import threading
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 from booker_core import BookerConfig, CourtBooker, FieldItem
-from server import as_bool, build_config, clamped_int, default_target_date, optional_int
+from server import Job, as_bool, build_config, clamped_int, default_target_date, optional_int
 
 
 class ServerConfigTests(unittest.TestCase):
@@ -64,6 +66,57 @@ class BookerCoreTests(unittest.TestCase):
         code, status = booker.post_field(session=None, body="", field_name="羽毛球07")  # type: ignore[arg-type]
 
         self.assertEqual((code, status), ("dry_run", 200))
+
+    def test_cookie_precheck_reports_config_invalid(self) -> None:
+        booker = CourtBooker(BookerConfig(cookie=""))
+
+        result = booker.cookie_precheck()
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.status, "config_invalid")
+
+    def test_cookie_precheck_reports_network_unknown(self) -> None:
+        cfg = BookerConfig(
+            cookie="abc",
+            fields=[FieldItem("YMQX007", "羽毛球07", "09:00", "10:00")],
+        )
+        booker = CourtBooker(cfg)
+
+        with patch("booker_core.requests.get", side_effect=TimeoutError("blocked")):
+            result = booker.cookie_precheck()
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.status, "network_unknown")
+
+    def test_cookie_precheck_reports_invalid_cookie(self) -> None:
+        class Response:
+            text = "请登录"
+            status_code = 200
+
+        cfg = BookerConfig(
+            cookie="abc",
+            fields=[FieldItem("YMQX007", "羽毛球07", "09:00", "10:00")],
+        )
+        booker = CourtBooker(cfg)
+
+        with patch("booker_core.requests.get", return_value=Response()):
+            result = booker.cookie_precheck()
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.status, "invalid_cookie")
+        self.assertEqual(result.http_status, 200)
+
+    def test_job_snapshot_exposes_status_metadata(self) -> None:
+        booker = CourtBooker(BookerConfig(cookie="abc"))
+        booker.result["status"] = "stopped"
+        job = Job(booker=booker, queue=None, thread=threading.Thread(), created_at=datetime.now())  # type: ignore[arg-type]
+
+        snapshot = job.snapshot("job-1")
+
+        self.assertEqual(snapshot["job_id"], "job-1")
+        self.assertEqual(snapshot["status"], "stopped")
+        self.assertEqual(snapshot["phase"], "stopped")
+        self.assertFalse(snapshot["alive"])
 
 
 if __name__ == "__main__":
