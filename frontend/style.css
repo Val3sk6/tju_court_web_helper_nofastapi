@@ -260,8 +260,9 @@ input:focus, textarea:focus, select:focus {
 }
 .field-row {
   display: grid;
-  grid-template-columns: auto 1.05fr 1fr 0.72fr 0.72fr minmax(112px, auto);
-  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 20px;
@@ -346,7 +347,8 @@ button.remove { background: rgba(255, 107, 122, 0.14); color: #ffd3d8; border: 1
 @media (max-width: 640px) {
   .shell { width: min(100% - 20px, 1280px); margin: 10px auto; }
   .hero, .panel, .logs-card { padding: 18px; }
-  .two-col, .actions, .field-row, .logs-toolbar { grid-template-columns: 1fr; }
+  .two-col, .actions, .field-row, .field-inputs, .logs-toolbar { grid-template-columns: 1fr; }
+  .field-tools { grid-column: auto; justify-content: flex-start; }
   .actions { position: static; }
   .logs-head { flex-direction: column; }
   .logs-actions { justify-content: flex-start; }
@@ -395,9 +397,33 @@ body.state-stopped .status-pill { border-color: rgba(154, 169, 191, 0.28); color
   font-weight: 900;
 }
 
-.field-tools {
+.field-inputs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+.field-cell {
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+.field-cell span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.field-cell input {
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.field-tools {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -453,5 +479,11 @@ button.mini {
 .log-line {
   display: block;
   padding: 1px 0;
+}
+.log-line.is-hidden { display: none; }
+
+@media (max-width: 640px) {
+  .field-inputs { grid-template-columns: 1fr; }
+  .field-tools { grid-column: auto; justify-content: flex-start; }
 }
 .log-line.is-hidden { display: none; }

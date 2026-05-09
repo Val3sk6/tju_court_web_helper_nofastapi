@@ -151,10 +151,24 @@
   <template id="fieldTemplate">
     <div class="field-row">
       <span class="field-index">#1</span>
-      <input class="field-no" placeholder="FieldNo，如 YMQX007" />
-      <input class="field-name" placeholder="场地名，如 羽毛球07" />
-      <input class="begin-time" placeholder="09:00" />
-      <input class="end-time" placeholder="10:00" />
+      <div class="field-inputs">
+        <label class="field-cell">
+          <span>FieldNo</span>
+          <input class="field-no" placeholder="如 YMQX007" />
+        </label>
+        <label class="field-cell">
+          <span>场地名</span>
+          <input class="field-name" placeholder="如 羽毛球07" />
+        </label>
+        <label class="field-cell">
+          <span>开始</span>
+          <input class="begin-time" placeholder="09:00" />
+        </label>
+        <label class="field-cell">
+          <span>结束</span>
+          <input class="end-time" placeholder="10:00" />
+        </label>
+      </div>
       <div class="field-tools" aria-label="候补场地操作">
         <button type="button" class="mini move-up" title="上移">↑</button>
         <button type="button" class="mini move-down" title="下移">↓</button>
