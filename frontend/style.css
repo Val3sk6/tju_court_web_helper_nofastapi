@@ -486,3 +486,4 @@ button.mini {
   .field-inputs { grid-template-columns: 1fr; }
   .field-tools { grid-column: auto; justify-content: flex-start; }
 }
+.log-line.is-hidden { display: none; }
