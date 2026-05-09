@@ -74,8 +74,23 @@ function payload() {
 
 function validatePayload(p) {
   if (!p.cookie) throw new Error('请先粘贴 Cookie。');
-  if (!p.target_date) throw new Error('请选择目标日期。');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.target_date)) throw new Error('请选择有效目标日期。');
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(p.open_time)) throw new Error('放场时间格式应为 HH:MM:SS。');
   if (!p.fields.length) throw new Error('至少添加一个候补场地。');
+}
+
+function closeLogStream() {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+}
+
+async function readJsonResponse(res) {
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
 }
 
 async function postJson(url, data) {
@@ -84,17 +99,34 @@ async function postJson(url, data) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(txt || `HTTP ${res.status}`);
+  return readJsonResponse(res);
+}
+
+async function getJson(url) {
+  const res = await fetch(url);
+  return readJsonResponse(res);
+}
+
+async function refreshFinalStatus() {
+  if (!currentJobId) return;
+  try {
+    const data = await getJson(`/api/status/${currentJobId}`);
+    const status = data.result && data.result.status;
+    if (status === 'success') setStatus('抢场成功', 'success');
+    else if (status === 'login' || status === 'cookie_invalid') setStatus('Cookie 异常', 'error');
+    else if (status === 'stopped') setStatus('已停止', 'info');
+    else if (status === 'failed') setStatus('未成功', 'error');
+    else setStatus('已结束', 'info');
+  } catch (e) {
+    setStatus('已结束', 'info');
   }
-  return res.json();
 }
 
 $('addFieldBtn').addEventListener('click', () => addField());
 $('clearLogsBtn').addEventListener('click', () => { logs.textContent = ''; });
 
 $('checkBtn').addEventListener('click', async () => {
+  $('checkBtn').disabled = true;
   try {
     const p = payload();
     validatePayload(p);
@@ -106,6 +138,8 @@ $('checkBtn').addEventListener('click', async () => {
   } catch (e) {
     appendLog(`❌ ${e.message}`, 'error');
     setStatus('预检失败', 'error');
+  } finally {
+    $('checkBtn').disabled = false;
   }
 });
 
@@ -113,7 +147,7 @@ $('startBtn').addEventListener('click', async () => {
   try {
     const p = payload();
     validatePayload(p);
-    if (eventSource) eventSource.close();
+    closeLogStream();
     logs.textContent = '';
     setStatus('运行中', 'running');
     $('startBtn').disabled = true;
@@ -128,10 +162,10 @@ $('startBtn').addEventListener('click', async () => {
       const item = JSON.parse(event.data);
       if (item.level === 'done') {
         appendLog('任务结束', 'info');
-        setStatus('已结束', 'info');
+        refreshFinalStatus();
         $('startBtn').disabled = false;
         $('stopBtn').disabled = true;
-        eventSource.close();
+        closeLogStream();
         return;
       }
       appendLog(item.message, item.level);
@@ -143,7 +177,7 @@ $('startBtn').addEventListener('click', async () => {
       $('startBtn').disabled = false;
       $('stopBtn').disabled = true;
       setStatus('连接中断', 'error');
-      eventSource.close();
+      closeLogStream();
     };
   } catch (e) {
     appendLog(`❌ ${e.message}`, 'error');
