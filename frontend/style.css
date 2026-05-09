@@ -514,8 +514,10 @@ button.mini {
 .preset-row button {
   flex: 0 0 auto;
 }
+.log-line.is-hidden { display: none; }
 
 @media (max-width: 640px) {
   .preset-row { display: grid; grid-template-columns: 1fr; }
   .preset-row button { width: 100%; }
 }
+.log-line.is-hidden { display: none; }
