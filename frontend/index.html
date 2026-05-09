@@ -120,7 +120,28 @@
             <h2>实时日志</h2>
             <p>成功后请立即打开微信完成支付。</p>
           </div>
-          <button type="button" class="ghost small" id="clearLogsBtn">清空</button>
+          <div class="logs-actions">
+            <button type="button" class="ghost small" id="copyLogsBtn">复制</button>
+            <button type="button" class="ghost small" id="downloadLogsBtn">下载</button>
+            <button type="button" class="ghost small" id="clearLogsBtn">清空</button>
+          </div>
+        </div>
+        <div class="logs-toolbar">
+          <label class="inline-control">
+            <span>筛选</span>
+            <select id="logFilter">
+              <option value="all">全部</option>
+              <option value="success">成功</option>
+              <option value="warn">警告</option>
+              <option value="error">错误</option>
+              <option value="info">信息</option>
+            </select>
+          </label>
+          <label class="inline-control check-inline">
+            <input id="autoScroll" type="checkbox" checked />
+            <span>自动滚动</span>
+          </label>
+          <div class="log-meta" id="logMeta">0 条日志</div>
         </div>
         <pre id="logs"></pre>
       </section>
@@ -129,11 +150,17 @@
 
   <template id="fieldTemplate">
     <div class="field-row">
+      <span class="field-index">#1</span>
       <input class="field-no" placeholder="FieldNo，如 YMQX007" />
       <input class="field-name" placeholder="场地名，如 羽毛球07" />
       <input class="begin-time" placeholder="09:00" />
       <input class="end-time" placeholder="10:00" />
-      <button type="button" class="remove">删除</button>
+      <div class="field-tools" aria-label="候补场地操作">
+        <button type="button" class="mini move-up" title="上移">↑</button>
+        <button type="button" class="mini move-down" title="下移">↓</button>
+        <button type="button" class="mini duplicate" title="复制">复制</button>
+        <button type="button" class="mini remove" title="删除">删除</button>
+      </div>
     </div>
   </template>
 

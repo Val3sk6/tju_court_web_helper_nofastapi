@@ -4,9 +4,13 @@ const fieldsBox = $('fields');
 const fieldTemplate = $('fieldTemplate');
 const logs = $('logs');
 const statusPill = $('statusPill');
+const logFilter = $('logFilter');
+const logMeta = $('logMeta');
+const autoScroll = $('autoScroll');
 
 let currentJobId = null;
 let eventSource = null;
+let logItems = [];
 
 function todayPlus(days) {
   const d = new Date();
@@ -14,34 +18,88 @@ function todayPlus(days) {
   return d.toISOString().slice(0, 10);
 }
 
-function appendLog(message, level = 'info') {
-  const span = document.createElement('span');
-  span.className = `log-${level}`;
-  span.textContent = message + '\n';
-  logs.appendChild(span);
-  logs.scrollTop = logs.scrollHeight;
-}
-
 function setStatus(text, tone = 'info') {
   statusPill.textContent = text;
-  const colors = {
-    info: 'rgba(102,227,255,.12)',
-    running: 'rgba(255,209,102,.13)',
-    success: 'rgba(141,247,199,.14)',
-    error: 'rgba(255,107,122,.15)'
-  };
-  statusPill.style.background = colors[tone] || colors.info;
+  document.body.classList.remove('state-info', 'state-running', 'state-success', 'state-error', 'state-stopped');
+  document.body.classList.add(`state-${tone}`);
 }
 
-function addField(data = {}) {
+function updateLogMeta() {
+  const total = logItems.length;
+  const visible = logs.querySelectorAll('.log-line:not(.is-hidden)').length;
+  const suffix = logFilter.value === 'all' ? '' : `，显示 ${visible} 条`;
+  logMeta.textContent = `${total} 条日志${suffix}`;
+}
+
+function applyLogFilter() {
+  const filter = logFilter.value;
+  logs.querySelectorAll('.log-line').forEach((node) => {
+    node.classList.toggle('is-hidden', filter !== 'all' && node.dataset.level !== filter);
+  });
+  updateLogMeta();
+}
+
+function appendLog(message, level = 'info') {
+  const normalizedLevel = ['success', 'error', 'warn', 'info', 'done'].includes(level) ? level : 'info';
+  const span = document.createElement('span');
+  span.className = `log-line log-${normalizedLevel}`;
+  span.dataset.level = normalizedLevel;
+  span.textContent = message + '\n';
+  logs.appendChild(span);
+  logItems.push({ level: normalizedLevel, message });
+  applyLogFilter();
+  if (autoScroll.checked) logs.scrollTop = logs.scrollHeight;
+}
+
+function resetLogs() {
+  logs.textContent = '';
+  logItems = [];
+  updateLogMeta();
+}
+
+function fieldDataFromRow(row) {
+  return {
+    FieldNo: row.querySelector('.field-no').value.trim(),
+    FieldName: row.querySelector('.field-name').value.trim(),
+    BeginTime: row.querySelector('.begin-time').value.trim(),
+    Endtime: row.querySelector('.end-time').value.trim(),
+  };
+}
+
+function updateFieldOrder() {
+  const rows = [...fieldsBox.querySelectorAll('.field-row')];
+  rows.forEach((row, index) => {
+    row.querySelector('.field-index').textContent = `#${index + 1}`;
+    row.querySelector('.move-up').disabled = index === 0;
+    row.querySelector('.move-down').disabled = index === rows.length - 1;
+  });
+}
+
+function addField(data = {}, afterRow = null) {
   const node = fieldTemplate.content.cloneNode(true);
   const row = node.querySelector('.field-row');
   row.querySelector('.field-no').value = data.FieldNo || '';
   row.querySelector('.field-name').value = data.FieldName || '';
   row.querySelector('.begin-time').value = data.BeginTime || '09:00';
   row.querySelector('.end-time').value = data.Endtime || '10:00';
-  row.querySelector('.remove').addEventListener('click', () => row.remove());
-  fieldsBox.appendChild(row);
+  row.querySelector('.move-up').addEventListener('click', () => {
+    const previous = row.previousElementSibling;
+    if (previous) fieldsBox.insertBefore(row, previous);
+    updateFieldOrder();
+  });
+  row.querySelector('.move-down').addEventListener('click', () => {
+    const next = row.nextElementSibling;
+    if (next) fieldsBox.insertBefore(next, row);
+    updateFieldOrder();
+  });
+  row.querySelector('.duplicate').addEventListener('click', () => addField(fieldDataFromRow(row), row));
+  row.querySelector('.remove').addEventListener('click', () => {
+    row.remove();
+    updateFieldOrder();
+  });
+  if (afterRow) afterRow.insertAdjacentElement('afterend', row);
+  else fieldsBox.appendChild(row);
+  updateFieldOrder();
 }
 
 function collectFields() {
@@ -114,7 +172,7 @@ async function refreshFinalStatus() {
     const status = data.result && data.result.status;
     if (status === 'success') setStatus('抢场成功', 'success');
     else if (status === 'login' || status === 'cookie_invalid') setStatus('Cookie 异常', 'error');
-    else if (status === 'stopped') setStatus('已停止', 'info');
+    else if (status === 'stopped') setStatus('已停止', 'stopped');
     else if (status === 'failed') setStatus('未成功', 'error');
     else setStatus('已结束', 'info');
   } catch (e) {
@@ -122,8 +180,34 @@ async function refreshFinalStatus() {
   }
 }
 
+async function copyLogs() {
+  const text = logItems.map(item => item.message).join('\n');
+  if (!text) return appendLog('暂无日志可复制。', 'warn');
+  try {
+    await navigator.clipboard.writeText(text);
+    appendLog('日志已复制到剪贴板。', 'success');
+  } catch (e) {
+    appendLog('复制失败，请手动选择日志内容复制。', 'error');
+  }
+}
+
+function downloadLogs() {
+  const text = logItems.map(item => `[${item.level}] ${item.message}`).join('\n');
+  if (!text) return appendLog('暂无日志可下载。', 'warn');
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `tju-helper-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 $('addFieldBtn').addEventListener('click', () => addField());
-$('clearLogsBtn').addEventListener('click', () => { logs.textContent = ''; });
+$('clearLogsBtn').addEventListener('click', resetLogs);
+$('copyLogsBtn').addEventListener('click', copyLogs);
+$('downloadLogsBtn').addEventListener('click', downloadLogs);
+logFilter.addEventListener('change', applyLogFilter);
 
 $('checkBtn').addEventListener('click', async () => {
   $('checkBtn').disabled = true;
@@ -148,7 +232,7 @@ $('startBtn').addEventListener('click', async () => {
     const p = payload();
     validatePayload(p);
     closeLogStream();
-    logs.textContent = '';
+    resetLogs();
     setStatus('运行中', 'running');
     $('startBtn').disabled = true;
     $('stopBtn').disabled = false;
@@ -190,15 +274,19 @@ $('startBtn').addEventListener('click', async () => {
 $('stopBtn').addEventListener('click', async () => {
   if (!currentJobId) return;
   try {
+    $('stopBtn').disabled = true;
     await postJson(`/api/stop/${currentJobId}`, {});
     appendLog('已发送停止指令。', 'warn');
     setStatus('停止中', 'running');
   } catch (e) {
     appendLog(`❌ 停止失败：${e.message}`, 'error');
+    $('stopBtn').disabled = false;
   }
 });
 
 // Defaults
+setStatus('未启动', 'info');
+updateLogMeta();
 $('targetDate').value = todayPlus(7);
 addField({ FieldNo: 'YMQX007', FieldName: '羽毛球07', BeginTime: '09:00', Endtime: '10:00' });
 addField({ FieldNo: 'YMQX008', FieldName: '羽毛球08', BeginTime: '09:00', Endtime: '10:00' });
