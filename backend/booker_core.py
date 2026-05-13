@@ -38,6 +38,14 @@ class FieldItem:
 
 
 @dataclass
+class PrecheckResult:
+    ok: bool
+    status: str
+    reason: str
+    http_status: Optional[int] = None
+
+
+@dataclass
 class BookerConfig:
     cookie: str
     mode: str = "stable"  # stable / fast
@@ -118,22 +126,28 @@ class CourtBooker:
                 return False, "场地配置不完整。"
         return True, "ok"
 
-    def cookie_check(self) -> bool:
+    def cookie_precheck(self) -> PrecheckResult:
         ok, msg = self.validate()
         if not ok:
             self.log(f"❌ {msg}", "error")
-            return False
+            return PrecheckResult(False, "config_invalid", msg)
         try:
             r = requests.get(self.referer, headers=self.headers(), timeout=5)
             if any(k in r.text for k in ["请登录", "微信授权", "用户类型选择"]):
-                self.log("❌ Cookie 失效，请重新抓取最新 Cookie", "error")
-                return False
-            self.log(f"✅ Cookie 检测通过，HTTP {r.status_code}", "success")
-            return True
+                reason = "Cookie 失效，请重新抓取最新 Cookie"
+                self.log(f"❌ {reason}", "error")
+                return PrecheckResult(False, "invalid_cookie", reason, r.status_code)
+            reason = f"Cookie 检测通过，HTTP {r.status_code}"
+            self.log(f"✅ {reason}", "success")
+            return PrecheckResult(True, "valid", reason, r.status_code)
         except Exception as exc:
             # Some campus networks may block pre-check but still allow booking later.
-            self.log(f"⚠️ Cookie 检测请求失败：{exc}；可继续，但建议检查网络", "warn")
-            return True
+            reason = f"Cookie 检测请求失败：{exc}；可继续，但建议检查网络"
+            self.log(f"⚠️ {reason}", "warn")
+            return PrecheckResult(True, "network_unknown", reason)
+
+    def cookie_check(self) -> bool:
+        return self.cookie_precheck().ok
 
     def sync_time(self) -> datetime:
         if not NTP_ENABLED:
