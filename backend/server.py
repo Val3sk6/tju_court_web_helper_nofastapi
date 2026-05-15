@@ -22,6 +22,20 @@ JOB_RETENTION = timedelta(minutes=10)
 LOCAL_ORIGIN_HOSTS = {"127.0.0.1", "localhost"}
 
 
+class BadRequest(ValueError):
+    def __init__(self, detail: str, code: str = "bad_request", fields: Optional[List[str]] = None):
+        super().__init__(detail)
+        self.detail = detail
+        self.code = code
+        self.fields = fields or []
+
+    def to_payload(self) -> Dict[str, object]:
+        payload: Dict[str, object] = {"detail": self.detail, "code": self.code}
+        if self.fields:
+            payload["fields"] = self.fields
+        return payload
+
+
 @dataclass
 class Job:
     booker: CourtBooker
@@ -68,14 +82,17 @@ def default_target_date() -> str:
     return (date.today() + timedelta(days=DEFAULT_TARGET_DAYS)).isoformat()
 
 
-def optional_int(value: Any) -> Optional[int]:
+def optional_int(value: Any, field_name: str = "value") -> Optional[int]:
     if value is None:
         return None
     if isinstance(value, str):
         value = value.strip()
     if value == "":
         return None
-    return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise BadRequest(f"{field_name} must be an integer", code="invalid_integer", fields=[field_name]) from exc
 
 
 def as_bool(value: Any) -> bool:
@@ -121,8 +138,8 @@ def build_config(payload: Dict[str, Any]) -> BookerConfig:
         field_type_no=str(payload.get("field_type_no", "017")).strip() or "017",
         user_agent=str(payload.get("user_agent") or default_ua),
         timeout=clamped_int(payload.get("timeout"), default=10, minimum=1, maximum=30),
-        threads=optional_int(payload.get("threads")),
-        attempts=optional_int(payload.get("attempts")),
+        threads=optional_int(payload.get("threads"), "threads"),
+        attempts=optional_int(payload.get("attempts"), "attempts"),
         dry_run=as_bool(payload.get("dry_run", False)),
     )
 
@@ -172,13 +189,21 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_json(self) -> Dict[str, Any]:
-        length = int(self.headers.get("Content-Length", "0") or "0")
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError as exc:
+            raise BadRequest("Content-Length must be an integer", code="invalid_content_length") from exc
         raw = self.rfile.read(length) if length else b"{}"
         if not raw:
             return {}
-        data = json.loads(raw.decode("utf-8"))
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except UnicodeDecodeError as exc:
+            raise BadRequest("request body must be UTF-8 encoded", code="invalid_encoding") from exc
+        except json.JSONDecodeError as exc:
+            raise BadRequest("request body must be valid JSON", code="invalid_json") from exc
         if not isinstance(data, dict):
-            raise ValueError("request body must be a JSON object")
+            raise BadRequest("request body must be a JSON object", code="invalid_body")
         return data
 
     def do_OPTIONS(self):
@@ -215,6 +240,14 @@ class Handler(BaseHTTPRequestHandler):
                     log_q.put({"level": level, "message": msg})
 
                 booker = CourtBooker(build_config(payload), logger)
+                ok, msg = booker.validate()
+                if not ok:
+                    booker.result["status"] = "invalid"
+                    return self._send_json({
+                        "detail": msg,
+                        "code": "config_invalid",
+                        "status": "invalid",
+                    }, 400)
 
                 def run_job():
                     try:
@@ -241,8 +274,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json({"ok": True, "job": job.snapshot(job_id)})
 
             return self._send_json({"detail": "not found"}, 404)
-        except (ValueError, json.JSONDecodeError) as exc:
-            return self._send_json({"detail": str(exc)}, 400)
+        except BadRequest as exc:
+            return self._send_json(exc.to_payload(), 400)
+        except ValueError as exc:
+            return self._send_json({"detail": str(exc), "code": "bad_request"}, 400)
         except Exception as exc:
             return self._send_json({"detail": str(exc)}, 500)
 

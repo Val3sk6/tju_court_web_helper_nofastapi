@@ -1,13 +1,21 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import json
+import sys
 import threading
 import unittest
+import urllib.error
+import urllib.request
 from datetime import date, datetime, timedelta
+from http.server import ThreadingHTTPServer
+from pathlib import Path
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from booker_core import BookerConfig, CourtBooker, FieldItem
-from server import Job, as_bool, build_config, clamped_int, default_target_date, optional_int
+from server import JOBS, JOBS_LOCK, Handler, Job, as_bool, build_config, clamped_int, default_target_date, optional_int
 
 
 class ServerConfigTests(unittest.TestCase):
@@ -41,6 +49,10 @@ class ServerConfigTests(unittest.TestCase):
         self.assertEqual(optional_int(" 12 "), 12)
         self.assertFalse(as_bool("false"))
         self.assertTrue(as_bool("true"))
+
+    def test_optional_int_reports_named_field_for_invalid_values(self) -> None:
+        with self.assertRaisesRegex(ValueError, "threads must be an integer"):
+            optional_int("many", "threads")
 
     def test_default_target_date_matches_frontend_default(self) -> None:
         self.assertEqual(default_target_date(), (date.today() + timedelta(days=7)).isoformat())
@@ -117,6 +129,89 @@ class BookerCoreTests(unittest.TestCase):
         self.assertEqual(snapshot["status"], "stopped")
         self.assertEqual(snapshot["phase"], "stopped")
         self.assertFalse(snapshot["alive"])
+
+
+class ApiStartValidationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        with JOBS_LOCK:
+            JOBS.clear()
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+        host, port = self.httpd.server_address
+        self.base_url = f"http://{host}:{port}"
+
+    def tearDown(self) -> None:
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.thread.join(timeout=2)
+        with JOBS_LOCK:
+            JOBS.clear()
+
+    def post_json(self, path: str, data: object) -> tuple[int, dict]:
+        body = json.dumps(data).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}{path}",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=3) as res:
+                return res.status, json.loads(res.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                return exc.code, json.loads(exc.read().decode("utf-8"))
+            finally:
+                exc.close()
+
+    def post_raw(self, path: str, body: bytes) -> tuple[int, dict]:
+        req = urllib.request.Request(
+            f"{self.base_url}{path}",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=3) as res:
+                return res.status, json.loads(res.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                return exc.code, json.loads(exc.read().decode("utf-8"))
+            finally:
+                exc.close()
+
+    def test_start_rejects_invalid_config_before_creating_job(self) -> None:
+        status, data = self.post_json("/api/start", {"cookie": "", "fields": []})
+
+        self.assertEqual(status, 400)
+        self.assertEqual(data["code"], "config_invalid")
+        self.assertEqual(data["status"], "invalid")
+        self.assertIn("Cookie", data["detail"])
+        self.assertNotIn("job_id", data)
+        with JOBS_LOCK:
+            self.assertEqual(JOBS, {})
+
+    def test_start_reports_invalid_integer_field_as_400(self) -> None:
+        status, data = self.post_json("/api/start", {
+            "cookie": "abc",
+            "threads": "many",
+            "fields": [{"FieldNo": "YMQX007", "FieldName": "羽毛球07", "BeginTime": "09:00", "Endtime": "10:00"}],
+        })
+
+        self.assertEqual(status, 400)
+        self.assertEqual(data["code"], "invalid_integer")
+        self.assertEqual(data["fields"], ["threads"])
+        self.assertEqual(data["detail"], "threads must be an integer")
+        with JOBS_LOCK:
+            self.assertEqual(JOBS, {})
+
+    def test_post_rejects_malformed_json_with_explicit_error_code(self) -> None:
+        status, data = self.post_raw("/api/start", b"{")
+
+        self.assertEqual(status, 400)
+        self.assertEqual(data["code"], "invalid_json")
+        self.assertEqual(data["detail"], "request body must be valid JSON")
 
 
 if __name__ == "__main__":
