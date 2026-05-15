@@ -22,6 +22,9 @@ import { setStatus, statusTextFromJob } from './status.js';
 
 let currentJobId = null;
 let eventSource = null;
+let logItems = [];
+let configSaveTimer = null;
+let isRestoringConfig = false;
 
 function closeLogStream() {
   if (eventSource) {
