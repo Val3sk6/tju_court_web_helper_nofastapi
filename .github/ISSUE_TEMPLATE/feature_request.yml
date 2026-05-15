@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement or follow-up task
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What user problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior or implementation direction.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Backend/API
+        - Booking core
+        - Frontend/UI
+        - Documentation
+        - GitHub/CI
+        - Security/privacy
+        - Other
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: Do not include cookies, request headers, HAR files, or screenshots/logs with sensitive data.
