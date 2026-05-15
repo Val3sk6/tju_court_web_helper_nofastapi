@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a reproducible problem without sharing secrets
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Before submitting, remove cookies, request headers, HAR files, packet captures, screenshots, or logs that contain secrets.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+      placeholder: Describe the problem briefly.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use test mode or fake data where possible.
+      placeholder: |
+        1. Start the helper...
+        2. Configure...
+        3. Click...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+      placeholder: git rev-parse --short HEAD
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 / macOS 14 / Ubuntu 24.04
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: python --version
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome / Edge / Firefox / Safari version
+  - type: dropdown
+    id: test-mode
+    attributes:
+      label: Did this happen in test mode?
+      options:
+        - 'Yes'
+        - 'No'
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or screenshots
+      description: Remove cookies, tokens, request headers, student IDs, phone numbers, order IDs, and any other sensitive data.
+      render: text

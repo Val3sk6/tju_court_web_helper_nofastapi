@@ -204,6 +204,16 @@ http://127.0.0.1:8787
 
 ## 开发说明
 
+建议在提交 PR 前运行以下检查：
+
+```bash
+python -m py_compile backend/booker_core.py backend/server.py
+python -m unittest discover -s backend -p 'test*.py'
+for f in frontend/*.js; do node --check "$f"; done
+```
+
+仓库已提供 GitHub Actions CI、Dependabot 配置、Issue/PR 模板和 `SECURITY.md`。提交问题或 PR 时，请先移除 Cookie、请求头、HAR、截图和日志中的敏感信息。
+
 后端核心职责：
 
 - `backend/server.py`：处理静态页面、JSON API、任务管理和 SSE 日志推送。
