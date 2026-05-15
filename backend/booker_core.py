@@ -14,7 +14,7 @@ import threading
 import time
 import urllib.parse
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable, Dict, List, Optional, Tuple
 
 import requests
@@ -43,6 +43,14 @@ class PrecheckResult:
     status: str
     reason: str
     http_status: Optional[int] = None
+
+
+@dataclass
+class TimeSyncResult:
+    now: datetime
+    offset_seconds: float = 0.0
+    source: str = "local"
+    samples: int = 0
 
 
 @dataclass
@@ -149,25 +157,64 @@ class CourtBooker:
     def cookie_check(self) -> bool:
         return self.cookie_precheck().ok
 
-    def sync_time(self) -> datetime:
+    def corrected_now(self, offset_seconds: float = 0.0) -> datetime:
+        return datetime.now() + timedelta(seconds=offset_seconds)
+
+    def sync_clock(self) -> TimeSyncResult:
         if not NTP_ENABLED:
-            self.log("⚠️ ntplib 未安装，使用本地时间", "warn")
-            return datetime.now()
+            now = self.corrected_now()
+            self.log("⚠️ ntplib 未安装，使用本地时间；校时偏移=+0.0ms", "warn")
+            return TimeSyncResult(now=now)
+
         servers = ["time.google.com", "pool.ntp.org", "time.windows.com"]
-        times: List[datetime] = []
+        offsets: List[float] = []
         for server in servers:
             try:
-                t = ntplib.NTPClient().request(server, version=3, timeout=1)
-                times.append(datetime.fromtimestamp(t.tx_time))
+                started = time.time()
+                response = ntplib.NTPClient().request(server, version=3, timeout=1)
+                finished = time.time()
+                local_midpoint = (started + finished) / 2
+                offsets.append(float(response.tx_time) - local_midpoint)
             except Exception:
                 pass
-        if times:
-            times.sort()
-            mid = times[len(times) // 2]
-            self.log(f"✅ 时间同步：{mid.strftime('%H:%M:%S.%f')[:-3]}", "success")
-            return mid
-        self.log("⚠️ NTP 同步失败，使用本地时间", "warn")
-        return datetime.now()
+
+        if offsets:
+            offsets.sort()
+            offset = offsets[len(offsets) // 2]
+            now = self.corrected_now(offset)
+            self.log(
+                f"✅ 时间同步：{now.strftime('%H:%M:%S.%f')[:-3]}，校时偏移={offset * 1000:+.1f}ms，样本={len(offsets)}",
+                "success",
+            )
+            return TimeSyncResult(now=now, offset_seconds=offset, source="ntp", samples=len(offsets))
+
+        now = self.corrected_now()
+        self.log("⚠️ NTP 同步失败，使用本地时间；校时偏移=+0.0ms", "warn")
+        return TimeSyncResult(now=now)
+
+    def sync_time(self) -> datetime:
+        return self.sync_clock().now
+
+    def wait_until(self, target_time: datetime, offset_seconds: float = 0.0) -> None:
+        delay = (target_time - self.corrected_now(offset_seconds)).total_seconds()
+        if delay <= 0:
+            return
+
+        deadline = time.monotonic() + delay
+        self.log(f"⏰ 等待 {delay:.2f}s 到 {self.cfg.open_time}")
+
+        coarse_deadline = max(time.monotonic(), deadline - 0.4)
+        while not self.stop_event.is_set():
+            remaining = coarse_deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.1, remaining))
+
+        while not self.stop_event.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.001, remaining))
 
     def analyze(self, text: str) -> str:
         lower = text.lower()
@@ -269,19 +316,9 @@ class CourtBooker:
             t.start()
             threads.append(t)
 
-        now = self.sync_time()
-        target_time = datetime.strptime(f"{now.date()} {self.cfg.open_time}", "%Y-%m-%d %H:%M:%S")
-        delay = (target_time - now).total_seconds()
-        if delay > 0:
-            self.log(f"⏰ 等待 {delay:.2f}s 到 {self.cfg.open_time}")
-            if delay > 1:
-                # Leave a short spin-wait window for precision.
-                for _ in range(int(max(0, delay - 0.4) * 10)):
-                    if self.stop_event.is_set():
-                        break
-                    time.sleep(0.1)
-            while datetime.now() < target_time and not self.stop_event.is_set():
-                time.sleep(0.001)
+        clock = self.sync_clock()
+        target_time = datetime.strptime(f"{clock.now.date()} {self.cfg.open_time}", "%Y-%m-%d %H:%M:%S")
+        self.wait_until(target_time, clock.offset_seconds)
 
         if self.stop_event.is_set():
             self.log("🛑 已停止，未发射请求", "warn")

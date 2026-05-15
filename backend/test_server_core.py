@@ -118,6 +118,50 @@ class BookerCoreTests(unittest.TestCase):
         self.assertEqual(result.status, "invalid_cookie")
         self.assertEqual(result.http_status, 200)
 
+    def test_sync_clock_uses_median_ntp_offset(self) -> None:
+        class Response:
+            def __init__(self, tx_time: float) -> None:
+                self.tx_time = tx_time
+
+        class Client:
+            tx_times = iter([100.3, 101.4, 102.5])
+
+            def request(self, _server: str, version: int, timeout: int) -> Response:
+                if version != 3 or timeout != 1:
+                    raise AssertionError("unexpected NTP request options")
+                return Response(next(Client.tx_times))
+
+        class NtpModule:
+            @staticmethod
+            def NTPClient() -> Client:
+                return Client()
+
+        logs = []
+        booker = CourtBooker(BookerConfig(cookie="abc"), lambda level, msg: logs.append((level, msg)))
+
+        with patch("booker_core.NTP_ENABLED", True), \
+                patch("booker_core.ntplib", NtpModule, create=True), \
+                patch("booker_core.time.time", side_effect=[100.0, 100.2, 101.0, 101.2, 102.0, 102.2]):
+            result = booker.sync_clock()
+
+        self.assertEqual(result.source, "ntp")
+        self.assertEqual(result.samples, 3)
+        self.assertAlmostEqual(result.offset_seconds, 0.3, places=6)
+        self.assertTrue(any("校时偏移=+300.0ms" in msg for _, msg in logs))
+
+    def test_wait_until_uses_monotonic_deadline(self) -> None:
+        booker = CourtBooker(BookerConfig(cookie="abc", open_time="21:00:00"))
+        base = datetime(2026, 5, 15, 20, 59, 59)
+
+        with patch.object(booker, "corrected_now", return_value=base), \
+                patch("booker_core.time.monotonic", side_effect=[10.0, 10.0, 10.6, 10.6, 11.0]) as monotonic, \
+                patch("booker_core.time.sleep") as sleep:
+            booker.wait_until(base + timedelta(seconds=1), offset_seconds=0.25)
+
+        self.assertGreaterEqual(monotonic.call_count, 5)
+        sleep.assert_called_once()
+        self.assertAlmostEqual(sleep.call_args.args[0], 0.001, places=6)
+
     def test_job_snapshot_exposes_status_metadata(self) -> None:
         booker = CourtBooker(BookerConfig(cookie="abc"))
         booker.result["status"] = "stopped"
