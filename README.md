@@ -29,7 +29,14 @@
 │   ├── run_server.py       # 启动入口，会自动打开浏览器
 │   └── server.py           # 标准库 HTTP 服务与 API 路由
 └── frontend/
-    ├── app.js              # 前端交互逻辑
+    ├── app.js              # 前端入口：事件绑定与页面初始化
+    ├── api.js              # fetch/JSON API 封装
+    ├── config.js           # 表单配置、持久化、预设与导入导出
+    ├── defaults.js         # 默认值与内置预设
+    ├── dom.js              # DOM 查询与共享元素引用
+    ├── fields.js           # 候补场地行增删改与排序
+    ├── logs.js             # 日志渲染、筛选、复制与下载
+    ├── status.js           # 状态展示与任务状态映射
     ├── index.html          # 页面结构
     └── style.css           # 页面样式
 ```
@@ -206,7 +213,8 @@ http://127.0.0.1:8787
 前端核心职责：
 
 - `frontend/index.html`：定义配置表单和日志区域。
-- `frontend/app.js`：收集配置、调用 API、接收 SSE 日志、更新状态。
+- `frontend/app.js`：作为 ES Module 入口，集中做事件绑定、任务启动/停止与 SSE 生命周期协调。
+- `frontend/config.js`、`fields.js`、`logs.js`、`api.js`、`status.js`：分别承载配置持久化、场地行操作、日志 UI、HTTP 请求和状态映射，降低单文件维护成本。
 - `frontend/style.css`：提供页面样式。
 
 ## 故障排查清单
