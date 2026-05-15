@@ -1,75 +1,75 @@
-name: Bug report
-description: Report a reproducible problem without sharing secrets
+name: 问题反馈
+description: 反馈可复现的问题；请勿提交 Cookie 或其他敏感信息
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a problem. Before submitting, remove cookies, request headers, HAR files, packet captures, screenshots, or logs that contain secrets.
+        感谢反馈问题。提交前请删除 Cookie、完整请求头、HAR 文件、抓包文件、截图或日志中的敏感信息。
   - type: textarea
     id: summary
     attributes:
-      label: Summary
-      description: What went wrong?
-      placeholder: Describe the problem briefly.
+      label: 问题概述
+      description: 简要说明哪里出了问题。
+      placeholder: 例如：点击“开始等待/抢场”后页面状态没有恢复。
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Reproduction steps
-      description: Use test mode or fake data where possible.
+      label: 复现步骤
+      description: 尽量使用测试模式或模拟数据复现。
       placeholder: |
-        1. Start the helper...
-        2. Configure...
-        3. Click...
+        1. 启动本地助手……
+        2. 填写配置……
+        3. 点击……
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
+      label: 期望行为
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
+      label: 实际行为
     validations:
       required: true
   - type: input
     id: commit
     attributes:
-      label: Commit or version
+      label: 提交号或版本
       placeholder: git rev-parse --short HEAD
   - type: input
     id: os
     attributes:
-      label: Operating system
+      label: 操作系统
       placeholder: Windows 11 / macOS 14 / Ubuntu 24.04
   - type: input
     id: python
     attributes:
-      label: Python version
+      label: Python 版本
       placeholder: python --version
   - type: input
     id: browser
     attributes:
-      label: Browser
-      placeholder: Chrome / Edge / Firefox / Safari version
+      label: 浏览器
+      placeholder: Chrome / Edge / Firefox / Safari 版本
   - type: dropdown
     id: test-mode
     attributes:
-      label: Did this happen in test mode?
+      label: 是否发生在测试模式？
       options:
-        - 'Yes'
-        - 'No'
-        - Not sure
+        - 是
+        - 否
+        - 不确定
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Redacted logs or screenshots
-      description: Remove cookies, tokens, request headers, student IDs, phone numbers, order IDs, and any other sensitive data.
+      label: 已脱敏的日志或截图
+      description: 请删除 Cookie、Token、请求头、学号、手机号、订单号和其他敏感信息。
       render: text

@@ -1,33 +1,33 @@
-# Security Policy
+# 安全政策
 
-## Supported scope
+## 支持范围
 
-This project is designed as a local-only helper that binds to `127.0.0.1` by default. It is not intended to be exposed to the public internet, shared over tunnels, or run on untrusted machines.
+本项目是一个本地运行的场馆预约辅助工具，默认仅绑定 `127.0.0.1`。它不适合暴露到公网、不适合通过内网穿透共享，也不建议在不可信设备上运行。
 
-## Sensitive data handling
+## 敏感信息处理
 
-The app handles user-provided booking-system cookies. Cookies are login credentials and must be treated as secrets.
+本项目会处理用户粘贴的预约系统 Cookie。Cookie 等同于登录凭据，必须按敏感信息处理。
 
-When opening an issue, discussion, pull request, or security report:
+在提交 Issue、Discussion、Pull Request 或安全报告时，请遵守以下规则：
 
-- Do **not** paste cookies, full request headers, HAR files, packet captures, screenshots, or logs that contain cookies.
-- Redact values such as `Cookie`, `Set-Cookie`, `WXOpenId`, session IDs, tokens, phone numbers, student IDs, and order identifiers.
-- Prefer reproductions that use test mode, mock data, or clearly fake placeholder credentials.
+- 不要粘贴 Cookie、完整请求头、HAR 文件、抓包文件、截图或包含 Cookie 的日志。
+- 请脱敏 `Cookie`、`Set-Cookie`、`WXOpenId`、会话 ID、Token、手机号、学号、订单号等字段。
+- 尽量使用测试模式、模拟数据或明显无效的占位凭据来复现问题。
 
-## Reporting a vulnerability
+## 报告安全问题
 
-Please report suspected security issues privately to the repository maintainers instead of posting public issues. Include:
+如果你发现疑似安全问题，请优先通过私密渠道联系维护者，不要直接发布公开 Issue。报告中建议包含：
 
-- A short description of the problem and impact.
-- Steps to reproduce with all secrets redacted.
-- Your environment: OS, Python version, browser, and commit/tag.
-- Whether the issue requires non-default host binding or public exposure.
+- 问题简介和可能影响。
+- 已脱敏的复现步骤。
+- 运行环境：操作系统、Python 版本、浏览器、提交号或版本号。
+- 该问题是否依赖非默认监听地址、内网穿透或公网暴露。
 
-If private reporting is not configured on GitHub, contact the maintainers through the least-public channel available and do not include live credentials in the first message.
+如果仓库暂未开启 GitHub Private Vulnerability Reporting，请通过维护者提供的最小公开范围渠道联系；首次联系时不要附带真实 Cookie 或其他有效凭据。
 
-## Operational guidance
+## 运行建议
 
-- Run the service only on trusted local machines.
-- Keep the default `127.0.0.1` binding unless you fully understand the risks.
-- Do not publish logs, exported configs, screenshots, or captures without checking for secrets.
-- Follow school venue-booking rules and avoid high-frequency or abusive traffic.
+- 只在可信本机环境运行本项目。
+- 除非你完全理解风险，否则不要修改默认 `127.0.0.1` 监听地址。
+- 发布日志、导出配置、截图或抓包前，请先检查并删除敏感信息。
+- 请遵守学校场馆预约规则，避免高频、恶意或影响他人正常使用的请求行为。

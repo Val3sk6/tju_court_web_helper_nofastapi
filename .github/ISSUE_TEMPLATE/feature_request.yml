@@ -1,39 +1,39 @@
-name: Feature request
-description: Suggest an improvement or follow-up task
+name: 功能建议
+description: 提出改进方向或后续任务
 labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Problem or motivation
-      description: What user problem would this solve?
+      label: 问题或动机
+      description: 这个建议想解决什么使用问题？
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed solution
-      description: Describe the desired behavior or implementation direction.
+      label: 期望方案
+      description: 请描述你希望看到的行为或实现方向。
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
+      label: 已考虑的替代方案
   - type: dropdown
     id: area
     attributes:
-      label: Area
+      label: 涉及范围
       options:
-        - Backend/API
-        - Booking core
-        - Frontend/UI
-        - Documentation
+        - 后端/API
+        - 预约核心逻辑
+        - 前端/UI
+        - 文档
         - GitHub/CI
-        - Security/privacy
-        - Other
+        - 安全/隐私
+        - 其他
     validations:
       required: true
   - type: markdown
     attributes:
-      value: Do not include cookies, request headers, HAR files, or screenshots/logs with sensitive data.
+      value: 请勿包含 Cookie、请求头、HAR 文件，或带有敏感信息的截图/日志。

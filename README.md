@@ -212,7 +212,7 @@ python -m unittest discover -s backend -p 'test*.py'
 for f in frontend/*.js; do node --check "$f"; done
 ```
 
-仓库已提供 GitHub Actions CI、Dependabot 配置、Issue/PR 模板和 `SECURITY.md`。提交问题或 PR 时，请先移除 Cookie、请求头、HAR、截图和日志中的敏感信息。
+仓库已提供 GitHub Actions CI、Dependabot 配置、中文 Issue/PR 模板、`SECURITY.md`、`CHANGELOG.md` 和 `LICENCE`。提交问题或 PR 时，请先移除 Cookie、请求头、HAR、截图和日志中的敏感信息；记录修改日志时也请使用中文描述用户可见变化。
 
 后端核心职责：
 
