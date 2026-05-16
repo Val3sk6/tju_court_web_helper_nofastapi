@@ -31,6 +31,68 @@ DEFAULT_TARGET_DAYS = 7
 JOB_RETENTION = timedelta(minutes=10)
 LOCAL_ORIGIN_HOSTS = {"127.0.0.1", "localhost"}
 
+STATUS_LABELS = {
+    "idle": "未启动",
+    "running": "运行中",
+    "success": "抢场成功",
+    "failed": "未成功",
+    "login": "Cookie 异常",
+    "cookie_invalid": "Cookie 异常",
+    "invalid": "配置无效",
+    "stopped": "已停止",
+}
+
+PHASE_LABELS = {
+    "running": "运行中",
+    "success": "已成功",
+    "blocked": "已阻断",
+    "stopped": "已停止",
+    "finished": "已结束",
+}
+
+NEXT_STEPS = {
+    "success": "请立即打开微信或预约系统完成支付/确认，避免订单超时被回收。",
+    "failed": "建议增加候补场地，确认目标日期、时间段、Cookie 和网络后再试。",
+    "login": "请重新登录预约系统，复制最新 Cookie 后先执行预检。",
+    "cookie_invalid": "请重新登录预约系统，复制最新 Cookie 后先执行预检。",
+    "invalid": "请按页面标红或错误提示补全配置后再启动。",
+    "stopped": "任务已停止；如需重试，可确认配置后重新启动。",
+    "running": "请保持本窗口和网络连接，等待放场或请求完成。",
+    "idle": "建议先勾选测试模式并执行 Cookie 预检。",
+}
+
+ERROR_HINTS = {
+    "bad_request": "请检查请求参数后重试；如果来自页面操作，请刷新页面后再试。",
+    "config_invalid": "请补全 Cookie、目标日期、放场时间和至少一个候补场地。",
+    "invalid_body": "接口只接受 JSON 对象，请不要提交数组或纯文本。",
+    "invalid_content_length": "请求头 Content-Length 异常，请刷新页面后重试。",
+    "invalid_encoding": "请求体必须使用 UTF-8 编码。",
+    "invalid_integer": "请检查数字输入框，只填写整数或留空。",
+    "invalid_json": "请求体不是合法 JSON，请刷新页面后重试。",
+    "job_not_found": "任务可能已结束并被清理，请重新启动一次。",
+    "not_found": "请求路径不存在，请刷新页面确认版本一致。",
+}
+
+
+def user_hint(code: str, detail: str = "") -> str:
+    if code in ERROR_HINTS:
+        return ERROR_HINTS[code]
+    if "Cookie" in detail:
+        return "请重新登录预约系统，复制完整 Cookie 后再试。"
+    return "请查看实时日志；如果问题持续出现，可导出日志并反馈。"
+
+
+def status_label(status: str) -> str:
+    return STATUS_LABELS.get(status, status or "未知")
+
+
+def phase_label(phase: str) -> str:
+    return PHASE_LABELS.get(phase, phase or "未知")
+
+
+def next_step(status: str) -> str:
+    return NEXT_STEPS.get(status, NEXT_STEPS["idle"])
+
 
 class BadRequest(ValueError):
     def __init__(self, detail: str, code: str = "bad_request", fields: Optional[List[str]] = None):
@@ -40,7 +102,7 @@ class BadRequest(ValueError):
         self.fields = fields or []
 
     def to_payload(self) -> Dict[str, object]:
-        payload: Dict[str, object] = {"detail": self.detail, "code": self.code}
+        payload: Dict[str, object] = {"detail": self.detail, "code": self.code, "hint": user_hint(self.code, self.detail)}
         if self.fields:
             payload["fields"] = self.fields
         return payload
@@ -72,11 +134,16 @@ class Job:
     def snapshot(self, job_id: str) -> Dict[str, object]:
         finished_at = self.finished_at
         end = finished_at or datetime.now()
+        status = self.status()
+        phase = self.phase()
         return {
             "job_id": job_id,
             "alive": self.thread.is_alive(),
-            "status": self.status(),
-            "phase": self.phase(),
+            "status": status,
+            "status_label": status_label(status),
+            "phase": phase,
+            "phase_label": phase_label(phase),
+            "next_step": next_step(status),
             "result": self.booker.result,
             "created_at": self.created_at.isoformat(timespec="seconds"),
             "finished_at": finished_at.isoformat(timespec="seconds") if finished_at else None,
@@ -236,7 +303,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json({
                     "ok": result.ok,
                     "status": result.status,
+                    "status_label": status_label("success" if result.status == "valid" else result.status),
                     "reason": result.reason,
+                    "hint": next_step("running") if result.status == "valid" else user_hint(result.status, result.reason),
                     "http_status": result.http_status,
                     "messages": messages,
                 })
@@ -256,6 +325,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send_json({
                         "detail": msg,
                         "code": "config_invalid",
+                        "hint": user_hint("config_invalid", msg),
                         "status": "invalid",
                     }, 400)
 
@@ -279,17 +349,17 @@ class Handler(BaseHTTPRequestHandler):
                 job_id = path.rsplit("/", 1)[-1]
                 job = get_job(job_id)
                 if not job:
-                    return self._send_json({"detail": "job not found"}, 404)
+                    return self._send_json({"detail": "job not found", "code": "job_not_found", "hint": user_hint("job_not_found")}, 404)
                 job.booker.stop()
                 return self._send_json({"ok": True, "job": job.snapshot(job_id)})
 
-            return self._send_json({"detail": "not found"}, 404)
+            return self._send_json({"detail": "not found", "code": "not_found", "hint": user_hint("not_found")}, 404)
         except BadRequest as exc:
             return self._send_json(exc.to_payload(), 400)
         except ValueError as exc:
-            return self._send_json({"detail": str(exc), "code": "bad_request"}, 400)
+            return self._send_json({"detail": str(exc), "code": "bad_request", "hint": user_hint("bad_request", str(exc))}, 400)
         except Exception as exc:
-            return self._send_json({"detail": str(exc)}, 500)
+            return self._send_json({"detail": str(exc), "code": "server_error", "hint": "后端出现未预期错误，请查看终端日志并重试。"}, 500)
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -302,13 +372,13 @@ class Handler(BaseHTTPRequestHandler):
     def _serve_status(self, job_id: str):
         job = get_job(job_id)
         if not job:
-            return self._send_json({"detail": "job not found"}, 404)
+            return self._send_json({"detail": "job not found", "code": "job_not_found", "hint": user_hint("job_not_found")}, 404)
         return self._send_json(job.snapshot(job_id))
 
     def _serve_logs(self, job_id: str):
         job = get_job(job_id)
         if not job:
-            return self._send_json({"detail": "job not found"}, 404)
+            return self._send_json({"detail": "job not found", "code": "job_not_found", "hint": user_hint("job_not_found")}, 404)
         self.send_response(200)
         self._cors()
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")

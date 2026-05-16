@@ -151,6 +151,26 @@
             <button type="button" class="ghost small" id="clearLogsBtn">清空</button>
           </div>
         </div>
+        <section class="status-board" aria-labelledby="statusBoardTitle">
+          <div class="status-board-head">
+            <div>
+              <p class="eyebrow">Run Summary</p>
+              <h2 id="statusBoardTitle">状态总览</h2>
+            </div>
+            <p id="adviceBox" class="advice-box" data-tone="info">建议先勾选测试模式并执行 Cookie 预检。</p>
+          </div>
+          <dl class="status-grid">
+            <div><dt>任务 ID</dt><dd id="jobIdValue">—</dd></div>
+            <div><dt>阶段</dt><dd id="phaseValue">待命</dd></div>
+            <div><dt>状态</dt><dd id="statusValue">未启动</dd></div>
+            <div><dt>运行时长</dt><dd id="durationValue">—</dd></div>
+            <div><dt>尝试次数</dt><dd id="attemptsValue">0</dd></div>
+            <div><dt>成功场地</dt><dd id="fieldValue">—</dd></div>
+            <div><dt>成功时间</dt><dd id="successTimeValue">—</dd></div>
+            <div><dt>最后结果</dt><dd id="lastCodeValue">—</dd></div>
+          </dl>
+        </section>
+
         <div class="logs-toolbar">
           <label class="inline-control">
             <span>筛选</span>

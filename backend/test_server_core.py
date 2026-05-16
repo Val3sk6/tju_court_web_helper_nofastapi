@@ -175,7 +175,10 @@ class BookerCoreTests(unittest.TestCase):
 
         self.assertEqual(snapshot["job_id"], "job-1")
         self.assertEqual(snapshot["status"], "stopped")
+        self.assertEqual(snapshot["status_label"], "已停止")
         self.assertEqual(snapshot["phase"], "stopped")
+        self.assertEqual(snapshot["phase_label"], "已停止")
+        self.assertIn("重试", snapshot["next_step"])
         self.assertFalse(snapshot["alive"])
 
 
@@ -236,6 +239,7 @@ class ApiStartValidationTests(unittest.TestCase):
         self.assertEqual(data["code"], "config_invalid")
         self.assertEqual(data["status"], "invalid")
         self.assertIn("Cookie", data["detail"])
+        self.assertIn("hint", data)
         self.assertNotIn("job_id", data)
         with JOBS_LOCK:
             self.assertEqual(JOBS, {})
@@ -251,6 +255,7 @@ class ApiStartValidationTests(unittest.TestCase):
         self.assertEqual(data["code"], "invalid_integer")
         self.assertEqual(data["fields"], ["threads"])
         self.assertEqual(data["detail"], "threads must be an integer")
+        self.assertIn("整数", data["hint"])
         with JOBS_LOCK:
             self.assertEqual(JOBS, {})
 
@@ -260,6 +265,7 @@ class ApiStartValidationTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(data["code"], "invalid_json")
         self.assertEqual(data["detail"], "request body must be valid JSON")
+        self.assertIn("JSON", data["hint"])
 
 
 if __name__ == "__main__":

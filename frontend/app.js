@@ -21,7 +21,7 @@ import {
 import { defaultConfig } from './defaults.js';
 import { setFieldChangeHandler } from './fields.js';
 import { appendLog, applyLogFilter, copyLogs, downloadLogs, resetLogs, updateLogMeta } from './logs.js';
-import { setStatus, statusTextFromJob } from './status.js';
+import { adviceFromError, adviceFromPrecheck, resetStatusPanel, setAdvice, setStatus, statusTextFromJob, updateStatusPanel } from './status.js';
 
 let currentJobId = null;
 let eventSource = null;
@@ -38,6 +38,7 @@ async function refreshFinalStatus() {
   try {
     const data = await getJson(`/api/status/${currentJobId}`);
     setStatus(...statusTextFromJob(data));
+    updateStatusPanel(data);
   } catch (e) {
     setStatus('已结束', 'info');
   }
@@ -50,6 +51,7 @@ function applyPrecheckStatus(data) {
   else if (status === 'config_invalid') setStatus('配置无效', 'error');
   else setStatus('Cookie 异常', 'error');
   if (data.reason) appendLog(`预检结果：${data.reason}`, status === 'valid' ? 'success' : status === 'network_unknown' ? 'warn' : 'error');
+  setAdvice(adviceFromPrecheck(data), status === 'valid' ? 'success' : status === 'network_unknown' ? 'warn' : 'error');
 }
 
 function bindConfigToolbar() {
@@ -87,6 +89,7 @@ function bindApiActions() {
       applyPrecheckStatus(data);
     } catch (e) {
       appendLog(`❌ ${e.message}`, 'error');
+      setAdvice(adviceFromError(e), 'error');
       setStatus('预检失败', 'error');
     } finally {
       $('checkBtn').disabled = false;
@@ -100,13 +103,18 @@ function bindApiActions() {
       closeLogStream();
       resetLogs();
       setStatus('运行中', 'running');
+      setAdvice('任务已提交，正在创建后端作业。', 'info');
+      updateStatusPanel({ phase_label: '启动中', status_label: '运行中', result: { stats: { attempts: 0 } }, next_step: '正在创建任务，请稍候。' });
       $('startBtn').disabled = true;
       $('stopBtn').disabled = false;
 
       const data = await postJson('/api/start', p);
       currentJobId = data.job_id;
       appendLog(`任务已启动：${currentJobId}`, 'info');
-      if (data.job) appendLog(`任务状态：${data.job.status} / ${data.job.phase}`, 'info');
+      if (data.job) {
+        appendLog(`任务状态：${data.job.status_label || data.job.status} / ${data.job.phase_label || data.job.phase}`, 'info');
+        updateStatusPanel(data.job);
+      }
 
       eventSource = new EventSource(`/api/logs/${currentJobId}`);
       eventSource.onmessage = (event) => {
@@ -120,18 +128,26 @@ function bindApiActions() {
           return;
         }
         appendLog(item.message, item.level);
-        if (item.message.includes('成功抢到')) setStatus('抢场成功', 'success');
-        if (item.message.includes('Cookie 失效')) setStatus('Cookie 异常', 'error');
+        if (item.message.includes('成功抢到')) {
+          setStatus('抢场成功', 'success');
+          setAdvice('抢场成功，请立即打开微信或预约系统完成支付/确认。', 'success');
+        }
+        if (item.message.includes('Cookie 失效')) {
+          setStatus('Cookie 异常', 'error');
+          setAdvice('Cookie 疑似失效，请重新登录预约系统并复制最新 Cookie。', 'error');
+        }
       };
       eventSource.onerror = () => {
         appendLog('日志连接中断，可查看后端终端窗口。', 'warn');
         $('startBtn').disabled = false;
         $('stopBtn').disabled = true;
         setStatus('连接中断', 'error');
+        setAdvice('日志连接中断。任务可能仍在后端运行，请查看终端或刷新后重试。', 'warn');
         closeLogStream();
       };
     } catch (e) {
       appendLog(`❌ ${e.message}`, 'error');
+      setAdvice(adviceFromError(e), 'error');
       $('startBtn').disabled = false;
       $('stopBtn').disabled = true;
       setStatus('启动失败', 'error');
@@ -144,10 +160,16 @@ function bindApiActions() {
       $('stopBtn').disabled = true;
       const data = await postJson(`/api/stop/${currentJobId}`, {});
       appendLog('已发送停止指令。', 'warn');
-      if (data.job) setStatus(...statusTextFromJob(data.job));
-      else setStatus('停止中', 'running');
+      if (data.job) {
+        setStatus(...statusTextFromJob(data.job));
+        updateStatusPanel(data.job);
+      } else {
+        setStatus('停止中', 'running');
+        setAdvice('已发送停止指令，等待后端确认。', 'warn');
+      }
     } catch (e) {
       appendLog(`❌ 停止失败：${e.message}`, 'error');
+      setAdvice(adviceFromError(e), 'error');
       $('stopBtn').disabled = false;
     }
   });
@@ -161,6 +183,7 @@ function init() {
 
   initCookieControls();
   setStatus('未启动', 'info');
+  resetStatusPanel();
   updateLogMeta();
   renderPresetOptions();
   try {

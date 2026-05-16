@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Any
 
 import requests
 
@@ -93,7 +93,22 @@ class CourtBooker:
         self.log_fn = log_fn or (lambda level, msg: print(f"[{level}] {msg}"))
         self.success = threading.Event()
         self.stop_event = threading.Event()
-        self.result: Dict[str, Optional[str]] = {"field": None, "time": None, "status": "idle"}
+        self.result: Dict[str, object] = {
+            "field": None,
+            "time": None,
+            "status": "idle",
+            "stats": {
+                "attempts": 0,
+                "success": 0,
+                "login": 0,
+                "fail": 0,
+                "error": 0,
+                "dry_run": 0,
+                "unknown": 0,
+            },
+            "last_code": None,
+            "last_http_status": None,
+        }
         self._lock = threading.Lock()
 
     @property
@@ -116,6 +131,16 @@ class CourtBooker:
     def log(self, msg: str, level: str = "info") -> None:
         stamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         self.log_fn(level, f"[{stamp}] {msg}")
+
+    def record_attempt(self, code: str, status: object) -> None:
+        with self._lock:
+            stats = self.result.setdefault("stats", {})
+            if isinstance(stats, dict):
+                stats["attempts"] = int(stats.get("attempts", 0)) + 1
+                bucket = code if code in stats else "unknown"
+                stats[bucket] = int(stats.get(bucket, 0)) + 1
+            self.result["last_code"] = code
+            self.result["last_http_status"] = str(status)
 
     def validate(self) -> Tuple[bool, str]:
         if not self.cfg.cookie or "REPLACE_ME" in self.cfg.cookie:
@@ -280,6 +305,7 @@ class CourtBooker:
                 field_item = item["field"]
                 assert isinstance(field_item, FieldItem)
                 code, status = self.post_field(session, str(item["body"]), field_item.FieldName)
+                self.record_attempt(code, status)
                 icon = "✅" if code == "success" else "🔑" if code == "login" else "⚠️" if code in {"fail", "dry_run"} else "💥"
                 self.log(f"T{tid} 尝试{i:02d} {icon} {field_item.FieldName} [{status}]", "success" if code == "success" else "info")
                 if code in {"success", "login"}:
@@ -292,7 +318,7 @@ class CourtBooker:
                 else:
                     time.sleep(0.01)
 
-    def run(self) -> Dict[str, Optional[str]]:
+    def run(self) -> Dict[str, Any]:
         ok, msg = self.validate()
         if not ok:
             self.result["status"] = "invalid"
