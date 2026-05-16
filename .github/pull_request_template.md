@@ -10,10 +10,12 @@
 
 ## 测试
 
-- [ ] `python -m py_compile backend/booker_core.py backend/server.py`
+- [ ] `python -m py_compile backend/booker_core.py backend/server.py tools/build_package.py`
 - [ ] `python -m unittest discover -s backend -p 'test*.py'`
 - [ ] `for f in frontend/*.js; do node --check "$f"; done`
+- [ ] `python tools/build_package.py --help`
 - [ ] 如修改前端可见行为，已完成手动 UI 冒烟测试
+- [ ] 如修改打包或启动路径，已完成本地打包验证
 
 ## 截图
 

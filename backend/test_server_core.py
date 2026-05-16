@@ -15,7 +15,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from booker_core import BookerConfig, CourtBooker, FieldItem
-from server import JOBS, JOBS_LOCK, Handler, Job, as_bool, build_config, clamped_int, default_target_date, optional_int
+from server import JOBS, JOBS_LOCK, Handler, Job, as_bool, build_config, clamped_int, default_target_date, frontend_dir, optional_int
 
 
 class ServerConfigTests(unittest.TestCase):
@@ -56,6 +56,10 @@ class ServerConfigTests(unittest.TestCase):
 
     def test_default_target_date_matches_frontend_default(self) -> None:
         self.assertEqual(default_target_date(), (date.today() + timedelta(days=7)).isoformat())
+
+    def test_frontend_dir_prefers_pyinstaller_bundle_root(self) -> None:
+        with patch("server.sys._MEIPASS", "/tmp/tju-helper-bundle", create=True):
+            self.assertEqual(frontend_dir(), Path("/tmp/tju-helper-bundle") / "frontend")
 
 
 class BookerCoreTests(unittest.TestCase):

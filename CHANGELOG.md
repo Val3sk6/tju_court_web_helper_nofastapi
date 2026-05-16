@@ -10,11 +10,14 @@
 - 导入配置时如果文件中包含 Cookie 字段，会主动忽略并提示。
 - 新增 `LICENSE`，便于 GitHub 自动识别 MIT License。
 - 保留 `LICENCE`，提供 MIT License 中文说明与英文正式条款。
-- 新增 `CONTRIBUTING.md`，说明中文协作流程、提交前检查、敏感信息脱敏和修改日志要求。
+- 新增 `CONTRIBUTING.md`，说明中文协作流程、提交前检查、打包验证、敏感信息脱敏和修改日志要求。
+- 新增 `tools/build_package.py`，提供 PyInstaller 单文件/目录包打包入口。
 - 新增中文修改日志，用于记录后续版本和维护类变更。
 
 ### 变更
 
 - 将 `SECURITY.md` 改为中文，便于中文用户理解 Cookie、日志、截图和抓包文件的脱敏要求。
 - 将 GitHub Issue 模板、PR 模板和 CI 展示名称改为中文，降低中文贡献者提交反馈和代码变更的沟通成本。
-- 更新 README，补充 CI/License/Python 徽章、项目结构中的许可证与贡献指南、免责声明，以及开发说明中的协作文档提示。
+- 更新 README，补充 CI/License/Python 徽章、项目结构中的许可证与贡献指南、免责声明、打包方案，以及开发说明中的协作文档提示。
+- 后端静态资源定位兼容 PyInstaller `_MEIPASS` 目录，便于打包后加载前端资源。
+- `.gitignore` 增加 `build/`、`dist/` 和 `*.spec`，避免提交本地打包产物。

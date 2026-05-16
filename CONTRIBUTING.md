@@ -37,12 +37,22 @@ http://127.0.0.1:8787
 提交 PR 前请至少运行：
 
 ```bash
-python -m py_compile backend/booker_core.py backend/server.py
+python -m py_compile backend/booker_core.py backend/server.py tools/build_package.py
 python -m unittest discover -s backend -p 'test*.py'
 for f in frontend/*.js; do node --check "$f"; done
 ```
 
 如果修改了前端可见行为，请手动打开页面做一次冒烟测试；涉及 UI 变化时，建议在 PR 中附截图。
+
+## 本地打包验证
+
+如修改了启动入口、静态资源路径或打包脚本，请额外验证打包命令：
+
+```bash
+python tools/build_package.py --onedir
+```
+
+打包产物位于 `dist/`，提交 PR 前请不要把 `build/`、`dist/` 或 `*.spec` 加入版本库。
 
 ## 修改日志
 

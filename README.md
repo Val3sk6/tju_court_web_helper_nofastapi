@@ -28,6 +28,8 @@
 ├── LICENSE                 # MIT License 正式授权文件
 ├── LICENCE                 # MIT License 中文说明与英文条款
 ├── CONTRIBUTING.md         # 中文贡献指南
+├── tools/
+│   └── build_package.py    # PyInstaller 打包脚本
 ├── start_linux.sh          # Linux/macOS 启动脚本
 ├── start_windows.bat       # Windows 启动脚本
 ├── backend/
@@ -107,6 +109,40 @@ http://127.0.0.1:8787
 ```
 
 `run_server.py` 默认会在服务启动后自动打开浏览器。如果浏览器没有自动打开，请手动访问上面的地址。
+
+## 打包方案
+
+如果希望给不熟悉命令行的用户分发，可以使用 PyInstaller 生成本机可执行文件。打包产物只建议在可信设备上分发和运行，仍然不要把 Cookie、日志、抓包或导出配置放进压缩包。
+
+### 准备打包环境
+
+```bash
+python -m venv .venv-build
+source .venv-build/bin/activate  # Windows 使用 .venv-build\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -r backend/requirements.txt pyinstaller
+```
+
+### 生成单文件包
+
+```bash
+python tools/build_package.py
+```
+
+默认会在 `dist/` 下生成名为 `tju-court-helper`（Windows 为 `tju-court-helper.exe`）的可执行文件，并把 `frontend/` 静态资源一起打入包内。运行该文件后访问 `http://127.0.0.1:8787`。
+
+### 生成目录包（便于调试）
+
+```bash
+python tools/build_package.py --onedir
+```
+
+### 发布前检查
+
+- 在目标系统上运行打包产物，确认浏览器能打开首页。
+- 使用测试模式完成一次启动/停止流程。
+- 确认压缩包中不包含 `.env`、日志、HAR、pcap、Cookie 截图或导出的个人配置。
+- Windows、macOS、Linux 需要分别在对应系统上打包，PyInstaller 通常不支持跨平台生成可执行文件。
 
 ## 页面配置说明
 
@@ -221,7 +257,7 @@ http://127.0.0.1:8787
 建议在提交 PR 前运行以下检查：
 
 ```bash
-python -m py_compile backend/booker_core.py backend/server.py
+python -m py_compile backend/booker_core.py backend/server.py tools/build_package.py
 python -m unittest discover -s backend -p 'test*.py'
 for f in frontend/*.js; do node --check "$f"; done
 ```

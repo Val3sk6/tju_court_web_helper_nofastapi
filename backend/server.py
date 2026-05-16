@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import queue
+import sys
 import threading
 import uuid
 from dataclasses import dataclass
@@ -16,7 +17,16 @@ from urllib.parse import urlparse
 from booker_core import BookerConfig, CourtBooker, FieldItem
 
 ROOT = Path(__file__).resolve().parent.parent
-FRONTEND = ROOT / "frontend"
+
+
+def frontend_dir() -> Path:
+    bundled_root = getattr(sys, "_MEIPASS", None)
+    if bundled_root:
+        return Path(bundled_root) / "frontend"
+    return ROOT / "frontend"
+
+
+FRONTEND = frontend_dir()
 DEFAULT_TARGET_DAYS = 7
 JOB_RETENTION = timedelta(minutes=10)
 LOCAL_ORIGIN_HOSTS = {"127.0.0.1", "localhost"}
