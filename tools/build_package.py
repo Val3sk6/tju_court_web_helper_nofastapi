@@ -7,6 +7,7 @@
 示例：
     python tools/build_package.py
     python tools/build_package.py --name tju-court-helper-dev --onedir
+    python tools/build_package.py --name tju-court-helper --windowed
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ FRONTEND = ROOT / "frontend"
 ENTRY = ROOT / "backend" / "run_server.py"
 
 
-def pyinstaller_command(name: str, onefile: bool, clean: bool) -> list[str]:
+def pyinstaller_command(name: str, onefile: bool, clean: bool, windowed: bool) -> list[str]:
     mode = "--onefile" if onefile else "--onedir"
     add_data = f"{FRONTEND}{os.pathsep}frontend"
     cmd = [
@@ -38,6 +39,8 @@ def pyinstaller_command(name: str, onefile: bool, clean: bool) -> list[str]:
     ]
     if clean:
         cmd.append("--clean")
+    if windowed:
+        cmd.append("--windowed")
     cmd.append(str(ENTRY))
     return cmd
 
@@ -47,6 +50,11 @@ def main() -> int:
     parser.add_argument("--name", default="tju-court-helper", help="输出可执行文件/目录名称。")
     parser.add_argument("--onedir", action="store_true", help="生成目录包而不是单文件包，便于调试。")
     parser.add_argument("--no-clean", action="store_true", help="不传递 PyInstaller --clean。")
+    parser.add_argument(
+        "--windowed",
+        action="store_true",
+        help="生成无控制台窗口的桌面程序；不便观察日志，建议仅在确认可用后发布。",
+    )
     args = parser.parse_args()
 
     if not FRONTEND.is_dir() or not ENTRY.is_file():
@@ -60,7 +68,7 @@ def main() -> int:
             print("未找到 PyInstaller。请先运行：python -m pip install pyinstaller", file=sys.stderr)
             return 2
 
-    cmd = pyinstaller_command(name=args.name, onefile=not args.onedir, clean=not args.no_clean)
+    cmd = pyinstaller_command(name=args.name, onefile=not args.onedir, clean=not args.no_clean, windowed=args.windowed)
     print("运行打包命令：")
     print(" ".join(str(part) for part in cmd))
     return subprocess.call(cmd, cwd=ROOT)

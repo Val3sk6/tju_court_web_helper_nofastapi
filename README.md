@@ -129,7 +129,19 @@ python -m pip install -r backend/requirements.txt pyinstaller
 python tools/build_package.py
 ```
 
-默认会在 `dist/` 下生成名为 `tju-court-helper`（Windows 为 `tju-court-helper.exe`）的可执行文件，并把 `frontend/` 静态资源一起打入包内。运行该文件后访问 `http://127.0.0.1:8787`。
+默认会在 `dist/` 下生成名为 `tju-court-helper`（Windows 为 `tju-court-helper.exe`）的可执行文件，并把 `frontend/` 静态资源一起打入包内。Windows 用户双击 exe 后会自动打开浏览器；如果浏览器没有自动打开，请手动访问 `http://127.0.0.1:8787`。关闭抢场助手时，直接关闭随 exe 打开的控制台窗口即可。
+
+如果确认日志和退出方式都没有问题，也可以生成无控制台窗口版本：
+
+```bash
+python tools/build_package.py --windowed
+```
+
+无控制台版本更像普通桌面软件，但不便查看运行日志，也不方便通过关闭窗口停止服务；发布给普通用户前建议优先使用默认的有控制台版本。
+
+### 自动构建 Windows exe
+
+仓库提供 `Windows 一键启动包` GitHub Actions 工作流，可在 Actions 页面手动触发，或推送 `v*` 标签触发。工作流会在 Windows 环境中运行 PyInstaller，并上传 `tju-court-helper-windows.exe` 作为构建产物，维护者下载后即可压缩分发给不熟悉 Python 的用户。
 
 ### 生成目录包（便于调试）
 
