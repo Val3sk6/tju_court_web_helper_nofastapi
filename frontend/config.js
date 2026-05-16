@@ -9,6 +9,41 @@ const PRESETS_KEY = 'tju-helper-presets-v1';
 let configSaveTimer = null;
 let isRestoringConfig = false;
 
+let isCookieVisible = false;
+
+function cookieInputWrap() {
+  return $('cookieInputWrap');
+}
+
+function updateCookieVisibility() {
+  const wrap = cookieInputWrap();
+  const toggle = $('toggleCookieBtn');
+  wrap.classList.toggle('is-masked', !isCookieVisible);
+  toggle.textContent = isCookieVisible ? '隐藏 Cookie' : '显示 Cookie';
+  toggle.setAttribute('aria-pressed', String(isCookieVisible));
+}
+
+export function toggleCookieVisibility() {
+  isCookieVisible = !isCookieVisible;
+  updateCookieVisibility();
+  appendLog(isCookieVisible ? 'Cookie 已显示，请注意遮挡屏幕。' : 'Cookie 已隐藏。', isCookieVisible ? 'warn' : 'info');
+}
+
+export function clearCookie() {
+  if (!$('cookie').value) {
+    appendLog('Cookie 输入框已经为空。', 'info');
+    return;
+  }
+  if (!window.confirm('清空当前 Cookie？此操作不会影响已保存的非敏感配置。')) return;
+  $('cookie').value = '';
+  appendLog('已清空 Cookie 输入框。', 'warn');
+}
+
+export function initCookieControls() {
+  isCookieVisible = false;
+  updateCookieVisibility();
+}
+
 export function configFromForm() {
   return {
     version: CONFIG_VERSION,
@@ -155,9 +190,11 @@ export function importConfig(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(String(reader.result || '{}'));
-      const imported = data.config || data;
+      const imported = { ...(data.config || data) };
+      const hadCookie = Object.prototype.hasOwnProperty.call(imported, 'cookie');
+      delete imported.cookie;
       applyConfig(imported, { save: true });
-      appendLog('配置导入成功（Cookie 未导入）。', 'success');
+      appendLog(hadCookie ? '配置导入成功，已忽略文件中的 Cookie。' : '配置导入成功（Cookie 未导入）。', 'success');
     } catch (e) {
       appendLog(`❌ 配置导入失败：${e.message}`, 'error');
     } finally {

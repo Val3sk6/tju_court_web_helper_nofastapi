@@ -3,9 +3,11 @@ import { $, importConfigFile, logFilter } from './dom.js';
 import {
   addField,
   applyConfig,
+  clearCookie,
   deletePreset,
   exportConfig,
   importConfig,
+  initCookieControls,
   loadPreset,
   loadSavedConfig,
   payload,
@@ -13,6 +15,7 @@ import {
   resetConfig,
   savePreset,
   scheduleConfigSave,
+  toggleCookieVisibility,
   validatePayload
 } from './config.js';
 import { defaultConfig } from './defaults.js';
@@ -22,9 +25,6 @@ import { setStatus, statusTextFromJob } from './status.js';
 
 let currentJobId = null;
 let eventSource = null;
-let logItems = [];
-let configSaveTimer = null;
-let isRestoringConfig = false;
 
 function closeLogStream() {
   if (eventSource) {
@@ -53,6 +53,8 @@ function applyPrecheckStatus(data) {
 }
 
 function bindConfigToolbar() {
+  $('toggleCookieBtn').addEventListener('click', toggleCookieVisibility);
+  $('clearCookieBtn').addEventListener('click', clearCookie);
   $('addFieldBtn').addEventListener('click', () => addField());
   $('loadPresetBtn').addEventListener('click', loadPreset);
   $('savePresetBtn').addEventListener('click', savePreset);
@@ -157,6 +159,7 @@ function init() {
   bindLogToolbar();
   bindApiActions();
 
+  initCookieControls();
   setStatus('未启动', 'info');
   updateLogMeta();
   renderPresetOptions();

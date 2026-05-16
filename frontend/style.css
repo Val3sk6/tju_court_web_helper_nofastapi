@@ -219,6 +219,38 @@ textarea {
   line-height: 1.45;
 }
 
+
+.cookie-field { gap: 8px; }
+.cookie-input-wrap {
+  position: relative;
+  border-radius: 16px;
+}
+.cookie-input-wrap.is-masked textarea {
+  color: transparent;
+  text-shadow: 0 0 9px rgba(36, 70, 111, 0.72);
+  caret-color: var(--accent);
+}
+.cookie-input-wrap.is-masked::after {
+  content: 'Cookie 已隐藏';
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(0, 91, 172, 0.18);
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: none;
+}
+.cookie-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cookie-tools button { flex: 0 0 auto; }
+
 select option { background: #101827; }
 input::placeholder, textarea::placeholder { color: rgba(217, 226, 240, 0.45); }
 
@@ -517,8 +549,8 @@ button.mini {
 }
 
 @media (max-width: 640px) {
-  .preset-row { display: grid; grid-template-columns: 1fr; }
-  .preset-row button { width: 100%; }
+  .preset-row, .cookie-tools { display: grid; grid-template-columns: 1fr; }
+  .preset-row button, .cookie-tools button { width: 100%; }
 }
 
 

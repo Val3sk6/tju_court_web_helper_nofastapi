@@ -35,10 +35,16 @@
           </div>
         </div>
 
-        <label class="full-row">
+        <label class="full-row cookie-field">
           <span>Cookie</span>
-          <textarea id="cookie" placeholder="粘贴完整 Cookie，例如：WXOpenId=...; LoginSource=0; ..."></textarea>
-          <small>仅在本机使用，避免截图、日志或聊天记录中泄露 Cookie。</small>
+          <div class="cookie-input-wrap is-masked" id="cookieInputWrap">
+            <textarea id="cookie" spellcheck="false" autocomplete="off" placeholder="粘贴完整 Cookie，例如：WXOpenId=...; LoginSource=0; ..."></textarea>
+          </div>
+          <div class="cookie-tools" aria-label="Cookie 操作">
+            <button type="button" class="ghost small" id="toggleCookieBtn" aria-pressed="false">显示 Cookie</button>
+            <button type="button" class="ghost small" id="clearCookieBtn">清空 Cookie</button>
+          </div>
+          <small>默认遮罩显示，避免旁人、截图、日志或聊天记录中泄露 Cookie；Cookie 仍不会被自动保存或导出。</small>
         </label>
 
         <div class="two-col">
