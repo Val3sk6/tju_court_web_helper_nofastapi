@@ -9,81 +9,130 @@
 <body>
   <main class="shell">
     <section class="hero card">
-      <div>
+      <div class="hero-copy">
         <p class="eyebrow">Local Web Console</p>
-        <h1>🏸 TJU 羽毛球抢场网页助手</h1>
+        <h1><span class="hero-icon">🏸</span> TJU 羽毛球抢场网页助手</h1>
         <p class="subtitle">网页负责配置与实时日志，本地 Python 后端负责请求、校时和并发执行。</p>
+        <div class="hero-stats" aria-label="助手能力概览">
+          <span>标准库后端</span>
+          <span>SSE 实时日志</span>
+          <span>测试模式保护</span>
+        </div>
       </div>
-      <div class="status-pill" id="statusPill">未启动</div>
+      <div class="hero-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <div class="status-pill" id="statusPill">未启动</div>
+      </div>
     </section>
 
     <section class="grid">
       <form class="card panel" id="configForm">
-        <h2>基础配置</h2>
+        <div class="section-head">
+          <span class="section-mark">01</span>
+          <div>
+            <h2>基础配置</h2>
+            <p>先完成 Cookie、时间与运行模式设置，建议实战前重新预检。</p>
+          </div>
+        </div>
 
-        <label>
-          Cookie
-          <textarea id="cookie" placeholder="粘贴完整 Cookie，例如：WXOpenId=...; LoginSource=0; ..."></textarea>
+        <label class="full-row cookie-field">
+          <span>Cookie</span>
+          <div class="cookie-input-wrap is-masked" id="cookieInputWrap">
+            <textarea id="cookie" spellcheck="false" autocomplete="off" placeholder="粘贴完整 Cookie，例如：WXOpenId=...; LoginSource=0; ..."></textarea>
+          </div>
+          <div class="cookie-tools" aria-label="Cookie 操作">
+            <button type="button" class="ghost small" id="toggleCookieBtn" aria-pressed="false">显示 Cookie</button>
+            <button type="button" class="ghost small" id="clearCookieBtn">清空 Cookie</button>
+          </div>
+          <small>默认遮罩显示，避免旁人、截图、日志或聊天记录中泄露 Cookie；Cookie 仍不会被自动保存或导出。</small>
         </label>
 
         <div class="two-col">
           <label>
-            模式
+            <span>模式</span>
             <select id="mode">
               <option value="stable" selected>stable：稳健</option>
               <option value="fast">fast：极速</option>
             </select>
           </label>
           <label>
-            放场时间
+            <span>放场时间</span>
             <input id="openTime" value="21:00:00" />
           </label>
         </div>
 
         <div class="two-col">
           <label>
-            目标日期
+            <span>目标日期</span>
             <input id="targetDate" type="date" />
           </label>
           <label>
-            并发线程，可空
+            <span>并发线程，可空</span>
             <input id="threads" type="number" min="1" max="20" placeholder="stable=6 / fast=10" />
           </label>
         </div>
 
         <div class="two-col">
           <label>
-            每线程尝试，可空
+            <span>每线程尝试，可空</span>
             <input id="attempts" type="number" min="1" max="80" placeholder="stable=20 / fast=40" />
           </label>
           <label>
-            请求超时秒
+            <span>请求超时秒</span>
             <input id="timeout" type="number" value="10" min="1" max="30" />
           </label>
         </div>
 
-        <div class="two-col">
+        <div class="two-col compact-group">
           <label>
-            VenueNo
+            <span>VenueNo</span>
             <input id="venueNo" value="005" />
           </label>
           <label>
-            FieldTypeNo
+            <span>FieldTypeNo</span>
             <input id="fieldTypeNo" value="017" />
           </label>
         </div>
 
         <label class="checkline">
           <input id="dryRun" type="checkbox" />
-          测试模式：只跑流程，不真正提交预约请求
+          <span>
+            <strong>测试模式</strong>
+            <small>只跑流程，不真正提交预约请求。</small>
+          </span>
         </label>
 
-        <h2>候补场地顺序</h2>
+        <div class="config-tools">
+          <div>
+            <strong>配置保存与预设</strong>
+            <small>自动保存非敏感配置；导入导出默认不包含 Cookie。</small>
+          </div>
+          <div class="preset-row">
+            <select id="presetSelect" aria-label="选择配置预设"></select>
+            <button type="button" class="ghost small" id="loadPresetBtn">加载</button>
+            <button type="button" class="ghost small" id="savePresetBtn">存为预设</button>
+            <button type="button" class="ghost small" id="deletePresetBtn">删除预设</button>
+          </div>
+          <div class="preset-row">
+            <button type="button" class="secondary small" id="exportConfigBtn">导出配置</button>
+            <button type="button" class="ghost small" id="importConfigBtn">导入配置</button>
+            <button type="button" class="ghost small" id="resetConfigBtn">恢复默认</button>
+            <input id="importConfigFile" type="file" accept="application/json,.json" hidden />
+          </div>
+        </div>
+
+        <div class="section-head field-head">
+          <span class="section-mark">02</span>
+          <div>
+            <h2>候补场地顺序</h2>
+            <p>按从上到下的优先级依次尝试，最想抢的场地放在最前面。</p>
+          </div>
+        </div>
         <div id="fields"></div>
-        <button type="button" class="ghost" id="addFieldBtn">+ 添加场地</button>
+        <button type="button" class="ghost add-field" id="addFieldBtn">+ 添加候补场地</button>
 
         <div class="actions">
-          <button type="button" id="checkBtn">预检 Cookie</button>
+          <button type="button" class="secondary" id="checkBtn">预检 Cookie</button>
           <button type="button" class="primary" id="startBtn">开始等待/抢场</button>
           <button type="button" class="danger" id="stopBtn" disabled>停止</button>
         </div>
@@ -92,10 +141,32 @@
       <section class="card logs-card">
         <div class="logs-head">
           <div>
+            <p class="eyebrow">Live Console</p>
             <h2>实时日志</h2>
             <p>成功后请立即打开微信完成支付。</p>
           </div>
-          <button type="button" class="ghost small" id="clearLogsBtn">清空</button>
+          <div class="logs-actions">
+            <button type="button" class="ghost small" id="copyLogsBtn">复制</button>
+            <button type="button" class="ghost small" id="downloadLogsBtn">下载</button>
+            <button type="button" class="ghost small" id="clearLogsBtn">清空</button>
+          </div>
+        </div>
+        <div class="logs-toolbar">
+          <label class="inline-control">
+            <span>筛选</span>
+            <select id="logFilter">
+              <option value="all">全部</option>
+              <option value="success">成功</option>
+              <option value="warn">警告</option>
+              <option value="error">错误</option>
+              <option value="info">信息</option>
+            </select>
+          </label>
+          <label class="inline-control check-inline">
+            <input id="autoScroll" type="checkbox" checked />
+            <span>自动滚动</span>
+          </label>
+          <div class="log-meta" id="logMeta">0 条日志</div>
         </div>
         <pre id="logs"></pre>
       </section>
@@ -104,14 +175,34 @@
 
   <template id="fieldTemplate">
     <div class="field-row">
-      <input class="field-no" placeholder="FieldNo，如 YMQX007" />
-      <input class="field-name" placeholder="场地名，如 羽毛球07" />
-      <input class="begin-time" placeholder="09:00" />
-      <input class="end-time" placeholder="10:00" />
-      <button type="button" class="remove">删除</button>
+      <span class="field-index">#1</span>
+      <div class="field-inputs">
+        <label class="field-cell">
+          <span>FieldNo</span>
+          <input class="field-no" placeholder="如 YMQX007" />
+        </label>
+        <label class="field-cell">
+          <span>场地名</span>
+          <input class="field-name" placeholder="如 羽毛球07" />
+        </label>
+        <label class="field-cell">
+          <span>开始</span>
+          <input class="begin-time" placeholder="09:00" />
+        </label>
+        <label class="field-cell">
+          <span>结束</span>
+          <input class="end-time" placeholder="10:00" />
+        </label>
+      </div>
+      <div class="field-tools" aria-label="候补场地操作">
+        <button type="button" class="mini move-up" title="上移">↑</button>
+        <button type="button" class="mini move-down" title="下移">↓</button>
+        <button type="button" class="mini duplicate" title="复制">复制</button>
+        <button type="button" class="mini remove" title="删除">删除</button>
+      </div>
     </div>
   </template>
 
-  <script src="/static/app.js"></script>
+  <script type="module" src="/static/app.js"></script>
 </body>
 </html>
