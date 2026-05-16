@@ -1,0 +1,20 @@
+export const $ = (id) => document.getElementById(id);
+
+export const fieldsBox = $('fields');
+export const fieldTemplate = $('fieldTemplate');
+export const logs = $('logs');
+export const statusPill = $('statusPill');
+export const logFilter = $('logFilter');
+export const logMeta = $('logMeta');
+export const autoScroll = $('autoScroll');
+export const presetSelect = $('presetSelect');
+export const importConfigFile = $('importConfigFile');
+export const adviceBox = $('adviceBox');
+export const jobIdValue = $('jobIdValue');
+export const phaseValue = $('phaseValue');
+export const statusValue = $('statusValue');
+export const durationValue = $('durationValue');
+export const attemptsValue = $('attemptsValue');
+export const fieldValue = $('fieldValue');
+export const successTimeValue = $('successTimeValue');
+export const lastCodeValue = $('lastCodeValue');

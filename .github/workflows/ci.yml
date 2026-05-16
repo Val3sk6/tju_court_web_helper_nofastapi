@@ -1,0 +1,75 @@
+name: 持续集成
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - work
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} 检查
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 安装 Python 依赖
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: 编译后端与打包脚本
+        run: python -m py_compile backend/booker_core.py backend/server.py tools/build_package.py tools/e2e_smoke.py
+
+      - name: 检查打包脚本入口
+        run: python tools/build_package.py --help
+
+      - name: 检查前端 JavaScript 语法
+        run: |
+          for file in frontend/*.js; do
+            node --check "$file"
+          done
+
+      - name: 运行后端单元测试
+        run: python -m unittest discover -s backend -p 'test*.py'
+
+      - name: 运行端到端冒烟测试
+        run: python tools/e2e_smoke.py
+
+      - name: 冒烟测试本地静态服务
+        run: |
+          cd backend
+          python -c 'import server; server.run(port=8877)' > /tmp/tju-helper-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8877/ > /tmp/index.html; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS http://127.0.0.1:8877/static/app.js > /tmp/app.js
+          curl -fsS http://127.0.0.1:8877/static/config.js > /tmp/config.js
+          python -c "from pathlib import Path; html = Path('/tmp/index.html').read_text(encoding='utf-8'); app = Path('/tmp/app.js').read_text(encoding='utf-8'); config = Path('/tmp/config.js').read_text(encoding='utf-8'); assert 'type=\"module\" src=\"/static/app.js\"' in html; assert \"from './config.js'\" in app; assert 'export function payload' in config"

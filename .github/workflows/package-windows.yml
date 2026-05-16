@@ -1,0 +1,45 @@
+name: Windows 一键启动包
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: '1'
+
+jobs:
+  package-windows:
+    name: 构建 Windows exe
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt pyinstaller
+
+      - name: 生成 Windows 单文件 exe
+        run: python tools/build_package.py --name tju-court-helper-windows
+
+      - name: 上传 exe 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: tju-court-helper-windows-exe
+          path: dist/tju-court-helper-windows.exe
+          if-no-files-found: error
+          retention-days: 14

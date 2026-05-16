@@ -14,8 +14,8 @@ import threading
 import time
 import urllib.parse
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Callable, Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Callable, Dict, List, Optional, Tuple, Any
 
 import requests
 
@@ -35,6 +35,22 @@ class FieldItem:
     BeginTime: str
     Endtime: str
     Price: str = "0"
+
+
+@dataclass
+class PrecheckResult:
+    ok: bool
+    status: str
+    reason: str
+    http_status: Optional[int] = None
+
+
+@dataclass
+class TimeSyncResult:
+    now: datetime
+    offset_seconds: float = 0.0
+    source: str = "local"
+    samples: int = 0
 
 
 @dataclass
@@ -77,7 +93,22 @@ class CourtBooker:
         self.log_fn = log_fn or (lambda level, msg: print(f"[{level}] {msg}"))
         self.success = threading.Event()
         self.stop_event = threading.Event()
-        self.result: Dict[str, Optional[str]] = {"field": None, "time": None, "status": "idle"}
+        self.result: Dict[str, object] = {
+            "field": None,
+            "time": None,
+            "status": "idle",
+            "stats": {
+                "attempts": 0,
+                "success": 0,
+                "login": 0,
+                "fail": 0,
+                "error": 0,
+                "dry_run": 0,
+                "unknown": 0,
+            },
+            "last_code": None,
+            "last_http_status": None,
+        }
         self._lock = threading.Lock()
 
     @property
@@ -101,6 +132,16 @@ class CourtBooker:
         stamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         self.log_fn(level, f"[{stamp}] {msg}")
 
+    def record_attempt(self, code: str, status: object) -> None:
+        with self._lock:
+            stats = self.result.setdefault("stats", {})
+            if isinstance(stats, dict):
+                stats["attempts"] = int(stats.get("attempts", 0)) + 1
+                bucket = code if code in stats else "unknown"
+                stats[bucket] = int(stats.get(bucket, 0)) + 1
+            self.result["last_code"] = code
+            self.result["last_http_status"] = str(status)
+
     def validate(self) -> Tuple[bool, str]:
         if not self.cfg.cookie or "REPLACE_ME" in self.cfg.cookie:
             return False, "请先粘贴真实 Cookie。"
@@ -118,42 +159,87 @@ class CourtBooker:
                 return False, "场地配置不完整。"
         return True, "ok"
 
-    def cookie_check(self) -> bool:
+    def cookie_precheck(self) -> PrecheckResult:
         ok, msg = self.validate()
         if not ok:
             self.log(f"❌ {msg}", "error")
-            return False
+            return PrecheckResult(False, "config_invalid", msg)
         try:
             r = requests.get(self.referer, headers=self.headers(), timeout=5)
             if any(k in r.text for k in ["请登录", "微信授权", "用户类型选择"]):
-                self.log("❌ Cookie 失效，请重新抓取最新 Cookie", "error")
-                return False
-            self.log(f"✅ Cookie 检测通过，HTTP {r.status_code}", "success")
-            return True
+                reason = "Cookie 失效，请重新抓取最新 Cookie"
+                self.log(f"❌ {reason}", "error")
+                return PrecheckResult(False, "invalid_cookie", reason, r.status_code)
+            reason = f"Cookie 检测通过，HTTP {r.status_code}"
+            self.log(f"✅ {reason}", "success")
+            return PrecheckResult(True, "valid", reason, r.status_code)
         except Exception as exc:
             # Some campus networks may block pre-check but still allow booking later.
-            self.log(f"⚠️ Cookie 检测请求失败：{exc}；可继续，但建议检查网络", "warn")
-            return True
+            reason = f"Cookie 检测请求失败：{exc}；可继续，但建议检查网络"
+            self.log(f"⚠️ {reason}", "warn")
+            return PrecheckResult(True, "network_unknown", reason)
 
-    def sync_time(self) -> datetime:
+    def cookie_check(self) -> bool:
+        return self.cookie_precheck().ok
+
+    def corrected_now(self, offset_seconds: float = 0.0) -> datetime:
+        return datetime.now() + timedelta(seconds=offset_seconds)
+
+    def sync_clock(self) -> TimeSyncResult:
         if not NTP_ENABLED:
-            self.log("⚠️ ntplib 未安装，使用本地时间", "warn")
-            return datetime.now()
+            now = self.corrected_now()
+            self.log("⚠️ ntplib 未安装，使用本地时间；校时偏移=+0.0ms", "warn")
+            return TimeSyncResult(now=now)
+
         servers = ["time.google.com", "pool.ntp.org", "time.windows.com"]
-        times: List[datetime] = []
+        offsets: List[float] = []
         for server in servers:
             try:
-                t = ntplib.NTPClient().request(server, version=3, timeout=1)
-                times.append(datetime.fromtimestamp(t.tx_time))
+                started = time.time()
+                response = ntplib.NTPClient().request(server, version=3, timeout=1)
+                finished = time.time()
+                local_midpoint = (started + finished) / 2
+                offsets.append(float(response.tx_time) - local_midpoint)
             except Exception:
                 pass
-        if times:
-            times.sort()
-            mid = times[len(times) // 2]
-            self.log(f"✅ 时间同步：{mid.strftime('%H:%M:%S.%f')[:-3]}", "success")
-            return mid
-        self.log("⚠️ NTP 同步失败，使用本地时间", "warn")
-        return datetime.now()
+
+        if offsets:
+            offsets.sort()
+            offset = offsets[len(offsets) // 2]
+            now = self.corrected_now(offset)
+            self.log(
+                f"✅ 时间同步：{now.strftime('%H:%M:%S.%f')[:-3]}，校时偏移={offset * 1000:+.1f}ms，样本={len(offsets)}",
+                "success",
+            )
+            return TimeSyncResult(now=now, offset_seconds=offset, source="ntp", samples=len(offsets))
+
+        now = self.corrected_now()
+        self.log("⚠️ NTP 同步失败，使用本地时间；校时偏移=+0.0ms", "warn")
+        return TimeSyncResult(now=now)
+
+    def sync_time(self) -> datetime:
+        return self.sync_clock().now
+
+    def wait_until(self, target_time: datetime, offset_seconds: float = 0.0) -> None:
+        delay = (target_time - self.corrected_now(offset_seconds)).total_seconds()
+        if delay <= 0:
+            return
+
+        deadline = time.monotonic() + delay
+        self.log(f"⏰ 等待 {delay:.2f}s 到 {self.cfg.open_time}")
+
+        coarse_deadline = max(time.monotonic(), deadline - 0.4)
+        while not self.stop_event.is_set():
+            remaining = coarse_deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.1, remaining))
+
+        while not self.stop_event.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.001, remaining))
 
     def analyze(self, text: str) -> str:
         lower = text.lower()
@@ -219,6 +305,7 @@ class CourtBooker:
                 field_item = item["field"]
                 assert isinstance(field_item, FieldItem)
                 code, status = self.post_field(session, str(item["body"]), field_item.FieldName)
+                self.record_attempt(code, status)
                 icon = "✅" if code == "success" else "🔑" if code == "login" else "⚠️" if code in {"fail", "dry_run"} else "💥"
                 self.log(f"T{tid} 尝试{i:02d} {icon} {field_item.FieldName} [{status}]", "success" if code == "success" else "info")
                 if code in {"success", "login"}:
@@ -231,7 +318,7 @@ class CourtBooker:
                 else:
                     time.sleep(0.01)
 
-    def run(self) -> Dict[str, Optional[str]]:
+    def run(self) -> Dict[str, Any]:
         ok, msg = self.validate()
         if not ok:
             self.result["status"] = "invalid"
@@ -255,19 +342,9 @@ class CourtBooker:
             t.start()
             threads.append(t)
 
-        now = self.sync_time()
-        target_time = datetime.strptime(f"{now.date()} {self.cfg.open_time}", "%Y-%m-%d %H:%M:%S")
-        delay = (target_time - now).total_seconds()
-        if delay > 0:
-            self.log(f"⏰ 等待 {delay:.2f}s 到 {self.cfg.open_time}")
-            if delay > 1:
-                # Leave a short spin-wait window for precision.
-                for _ in range(int(max(0, delay - 0.4) * 10)):
-                    if self.stop_event.is_set():
-                        break
-                    time.sleep(0.1)
-            while datetime.now() < target_time and not self.stop_event.is_set():
-                time.sleep(0.001)
+        clock = self.sync_clock()
+        target_time = datetime.strptime(f"{clock.now.date()} {self.cfg.open_time}", "%Y-%m-%d %H:%M:%S")
+        self.wait_until(target_time, clock.offset_seconds)
 
         if self.stop_event.is_set():
             self.log("🛑 已停止，未发射请求", "warn")
