@@ -23,6 +23,20 @@ FRONTEND = ROOT / "frontend"
 ENTRY = ROOT / "backend" / "run_server.py"
 
 
+def ensure_utf8_stdio() -> None:
+    """Force UTF-8 console output for Windows CI shells with legacy code pages."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8")
+        except (OSError, ValueError):
+            # Some embedded or redirected streams may reject reconfiguration;
+            # in that case keep the original stream behavior.
+            pass
+
+
 def pyinstaller_command(name: str, onefile: bool, clean: bool, windowed: bool) -> list[str]:
     mode = "--onefile" if onefile else "--onedir"
     add_data = f"{FRONTEND}{os.pathsep}frontend"
@@ -46,6 +60,8 @@ def pyinstaller_command(name: str, onefile: bool, clean: bool, windowed: bool) -
 
 
 def main() -> int:
+    ensure_utf8_stdio()
+
     parser = argparse.ArgumentParser(description="打包 TJU Court Web Helper 本地网页助手。")
     parser.add_argument("--name", default="tju-court-helper", help="输出可执行文件/目录名称。")
     parser.add_argument("--onedir", action="store_true", help="生成目录包而不是单文件包，便于调试。")
