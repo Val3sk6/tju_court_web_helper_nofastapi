@@ -1,5 +1,9 @@
 # TJU Court Web Helper（无 FastAPI 兼容版）
 
+![持续集成](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+
 一个面向天津大学场馆预约系统的**本地网页助手**。项目通过浏览器页面完成参数配置与实时日志展示，由本机 Python 后端负责 Cookie 预检、时间同步、候补场地请求体构造和并发提交。
 
 本版本不依赖 FastAPI、Uvicorn 或 Pydantic，仅使用 Python 标准库提供本地 Web 服务，以减少在较新 Python 版本中安装 Web 框架依赖时遇到的兼容性问题。
@@ -21,6 +25,9 @@
 ```text
 .
 ├── README.md
+├── LICENSE                 # MIT License 正式授权文件
+├── LICENCE                 # MIT License 中文说明与英文条款
+├── CONTRIBUTING.md         # 中文贡献指南
 ├── start_linux.sh          # Linux/macOS 启动脚本
 ├── start_windows.bat       # Windows 启动脚本
 ├── backend/
@@ -194,6 +201,13 @@ http://127.0.0.1:8787
 
 预约系统通常会在生成订单后要求用户完成支付或确认。如果未及时处理，订单可能被系统回收；请以学校系统实际提示为准。
 
+## 免责声明
+
+- 本项目仅用于本地辅助配置、个人学习和技术交流，不保证预约成功。
+- 使用者需自行确认并遵守天津大学及相关场馆的预约规则、账号规则和网络使用规范。
+- 因使用本项目产生的账号、网络、预约、支付、订单或其他后果，由使用者自行承担。
+- 请勿将本项目用于绕过规则、恶意高频请求、影响他人正常预约或任何未经授权的用途。
+
 ## 安全与合规
 
 - 本项目设计为本机使用，默认访问地址为 `127.0.0.1`。
@@ -212,7 +226,7 @@ python -m unittest discover -s backend -p 'test*.py'
 for f in frontend/*.js; do node --check "$f"; done
 ```
 
-仓库已提供 GitHub Actions CI、Dependabot 配置、中文 Issue/PR 模板、`SECURITY.md`、`CHANGELOG.md` 和 `LICENCE`。提交问题或 PR 时，请先移除 Cookie、请求头、HAR、截图和日志中的敏感信息；记录修改日志时也请使用中文描述用户可见变化。
+仓库已提供 GitHub Actions CI、Dependabot 配置、中文 Issue/PR 模板、`SECURITY.md`、`CHANGELOG.md`、`CONTRIBUTING.md`、`LICENSE` 和 `LICENCE`。提交问题或 PR 时，请先移除 Cookie、请求头、HAR、截图和日志中的敏感信息；记录修改日志时也请使用中文描述用户可见变化。
 
 后端核心职责：
 
