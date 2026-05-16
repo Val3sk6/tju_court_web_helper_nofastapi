@@ -451,6 +451,7 @@ button.remove { background: rgba(255, 107, 122, 0.14); color: #ffd3d8; border: 1
   .hero { grid-template-columns: 1fr; align-items: start; }
   .hero-status { justify-self: start; }
 }
+.log-line.is-hidden { display: none; }
 
 @media (max-width: 640px) {
   .shell { width: min(100% - 20px, 1280px); margin: 10px auto; }
