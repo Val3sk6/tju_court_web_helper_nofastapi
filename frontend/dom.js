@@ -18,3 +18,7 @@ export const attemptsValue = $('attemptsValue');
 export const fieldValue = $('fieldValue');
 export const successTimeValue = $('successTimeValue');
 export const lastCodeValue = $('lastCodeValue');
+export const successDialog = $('successDialog');
+export const successDialogField = $('successDialogField');
+export const successDialogTime = $('successDialogTime');
+export const successDialogOrderId = $('successDialogOrderId');

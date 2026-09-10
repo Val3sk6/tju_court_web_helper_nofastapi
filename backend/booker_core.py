@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Callable, Dict, List, Optional, Tuple, Any
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -96,6 +96,8 @@ class CourtBooker:
         self.result: Dict[str, object] = {
             "field": None,
             "time": None,
+            "success_at": None,
+            "orderid": None,
             "status": "idle",
             "stats": {
                 "attempts": 0,
@@ -241,20 +243,49 @@ class CourtBooker:
                 break
             time.sleep(min(0.001, remaining))
 
-    def analyze(self, text: str) -> str:
+    def analyze_response(self, text: str) -> Tuple[str, Optional[str]]:
+        """Return the response status and the v1.2 order ID when available."""
+        try:
+            payload = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+
+        if isinstance(payload, dict):
+            resultdata = payload.get("resultdata")
+            if payload.get("errorcode") == 0 and resultdata:
+                return "success", str(resultdata)
+
         lower = text.lower()
         if any(k in text for k in ["请登录", "用户类型选择", "授权"]):
-            return "login"
-        if any(k in text for k in ["不可预订", "请选择预定场地", "已被预约", "忙时"]):
-            return "fail"
+            return "login", None
+        if any(k in text for k in [
+            "不可预订", "请选择预定场地", "已被预约", "忙时",
+            "超过预约次数", "达到预约上限", "已预约", "不可预约", "无权限",
+        ]):
+            return "fail", None
         if any(k in lower for k in ["success", "预约成功", "待支付", "支付", "orderid"]):
-            return "success"
-        return "unknown"
+            return "success", None
+        return "unknown", None
+
+    def analyze(self, text: str) -> str:
+        """Compatibility wrapper retained for callers that only need a status."""
+        return self.analyze_response(text)[0]
+
+    @staticmethod
+    def validate_dateadd(dateadd: int) -> bool:
+        """Validate DateAdd without changing the current website-derived behavior.
+
+        DateAdd represents the target day offset in the website booking cycle.
+        This small seam can later be extended with a GetList availability check.
+        """
+        return dateadd >= 0
 
     def build_bodies(self) -> List[Dict[str, object]]:
         today = datetime.now().date()
         target = datetime.strptime(self.cfg.target_date, "%Y-%m-%d").date()
-        dateadd = str((target - today).days)
+        # DateAdd is the target-day offset used by the website booking cycle.
+        dateadd_days = (target - today).days
+        dateadd = str(dateadd_days)
         self.log(f"📅 目标日期 {self.cfg.target_date}，dateadd={dateadd}")
         bodies: List[Dict[str, object]] = []
         for f in self.cfg.fields:
@@ -275,17 +306,25 @@ class CourtBooker:
             bodies.append({"field": f, "body": body})
         return bodies
 
-    def post_field(self, session: requests.Session, body: str, field_name: str) -> Tuple[str, object]:
+    def post_field(
+        self,
+        session: requests.Session,
+        body: str,
+        field_name: str,
+        booking_time: str = "",
+    ) -> Tuple[str, object]:
         if self.cfg.dry_run:
             return "dry_run", 200
         try:
             r = session.post(self.post_url, data=body, headers=self.headers(), timeout=self.cfg.timeout)
             text = r.content.decode("utf-8", errors="replace")
-            code = self.analyze(text)
+            code, orderid = self.analyze_response(text)
             if code == "success":
                 with self._lock:
                     self.result["field"] = field_name
-                    self.result["time"] = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                    self.result["time"] = booking_time
+                    self.result["success_at"] = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                    self.result["orderid"] = orderid
                     self.result["status"] = "success"
                 self.success.set()
                 self.stop_event.set()
@@ -304,13 +343,22 @@ class CourtBooker:
                     return
                 field_item = item["field"]
                 assert isinstance(field_item, FieldItem)
-                code, status = self.post_field(session, str(item["body"]), field_item.FieldName)
+                booking_time = f"{field_item.BeginTime}-{field_item.Endtime}"
+                code, status = self.post_field(session, str(item["body"]), field_item.FieldName, booking_time)
                 self.record_attempt(code, status)
-                icon = "✅" if code == "success" else "🔑" if code == "login" else "⚠️" if code in {"fail", "dry_run"} else "💥"
-                self.log(f"T{tid} 尝试{i:02d} {icon} {field_item.FieldName} [{status}]", "success" if code == "success" else "info")
-                if code in {"success", "login"}:
+                self.log(
+                    f"T{tid} 尝试{i:02d}\n"
+                    f"{field_item.FieldName}\n"
+                    f"HTTP {status}\n"
+                    f"状态 {code.upper()}",
+                    "success" if code == "success" else "warn" if code == "fail" else "info",
+                )
+                if code in {"success", "login", "fail"}:
                     if code == "login":
                         self.result["status"] = "login"
+                        self.stop_event.set()
+                    elif code == "fail":
+                        self.result["status"] = "failed"
                         self.stop_event.set()
                     return
                 if self.cfg.mode == "stable":
@@ -356,8 +404,16 @@ class CourtBooker:
             t.join(timeout=30)
 
         if self.success.is_set():
-            self.log(f"✅ 成功抢到 {self.result['field']} @ {self.result['time']}", "success")
-            self.log("💡 请立即打开微信完成支付，否则系统可能回收订单。", "warn")
+            self.log(
+                "=====================\n"
+                "预约成功！\n\n"
+                f"场地：\n{self.result['field']}\n\n"
+                f"时间：\n{self.result['time']}\n\n"
+                f"订单号：\n{self.result['orderid'] or '旧版响应未返回订单号'}\n\n"
+                "请打开微信完成支付\n"
+                "=====================",
+                "success",
+            )
         else:
             if self.result.get("status") == "running":
                 self.result["status"] = "failed"

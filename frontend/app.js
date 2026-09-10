@@ -21,7 +21,7 @@ import {
 import { defaultConfig } from './defaults.js';
 import { setFieldChangeHandler } from './fields.js';
 import { appendLog, applyLogFilter, copyLogs, downloadLogs, resetLogs, updateLogMeta } from './logs.js';
-import { adviceFromError, adviceFromPrecheck, resetStatusPanel, setAdvice, setStatus, statusTextFromJob, updateStatusPanel } from './status.js';
+import { adviceFromError, adviceFromPrecheck, bindSuccessDialog, resetStatusPanel, setAdvice, setStatus, showSuccessDialog, statusTextFromJob, updateStatusPanel } from './status.js';
 
 let currentJobId = null;
 let eventSource = null;
@@ -39,6 +39,7 @@ async function refreshFinalStatus() {
     const data = await getJson(`/api/status/${currentJobId}`);
     setStatus(...statusTextFromJob(data));
     updateStatusPanel(data);
+    if (data.status === 'success') showSuccessDialog(data.result);
   } catch (e) {
     setStatus('已结束', 'info');
   }
@@ -180,6 +181,7 @@ function init() {
   bindConfigToolbar();
   bindLogToolbar();
   bindApiActions();
+  bindSuccessDialog(appendLog);
 
   initCookieControls();
   setStatus('未启动', 'info');

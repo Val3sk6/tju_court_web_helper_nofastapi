@@ -71,6 +71,61 @@ class BookerCoreTests(unittest.TestCase):
         self.assertEqual(booker.analyze('{"success": true, "orderId": 123}'), "success")
         self.assertEqual(booker.analyze("unrecognized response"), "unknown")
 
+    def test_analyze_recognizes_v12_json_success_and_order_id(self) -> None:
+        booker = CourtBooker(BookerConfig(cookie="abc"))
+
+        code, orderid = booker.analyze_response('{"type": 1, "errorcode": 0, "message": "", "resultdata": "123456"}')
+
+        self.assertEqual(code, "success")
+        self.assertEqual(orderid, "123456")
+
+    def test_post_field_saves_v12_order_and_booking_time(self) -> None:
+        class Response:
+            status_code = 200
+            content = b'{"errorcode":0,"resultdata":"123456"}'
+
+        class Session:
+            def post(self, *_args, **_kwargs) -> Response:
+                return Response()
+
+        booker = CourtBooker(BookerConfig(cookie="abc"))
+
+        code, status = booker.post_field(Session(), "body", "羽毛球新7", "09:00-10:00")  # type: ignore[arg-type]
+
+        self.assertEqual((code, status), ("success", 200))
+        self.assertEqual(booker.result["field"], "羽毛球新7")
+        self.assertEqual(booker.result["time"], "09:00-10:00")
+        self.assertEqual(booker.result["orderid"], "123456")
+        self.assertTrue(booker.success.is_set())
+        self.assertTrue(booker.stop_event.is_set())
+
+    def test_v12_business_failure_stops_worker_after_one_request(self) -> None:
+        cfg = BookerConfig(
+            cookie="abc",
+            fields=[FieldItem("YMQX007", "羽毛球新7", "09:00", "10:00")],
+            attempts=5,
+        )
+        booker = CourtBooker(cfg)
+        start_event = threading.Event()
+        start_event.set()
+
+        with patch.object(booker, "post_field", return_value=("fail", 200)) as post_field:
+            booker.worker(0, booker.build_bodies(), start_event)
+
+        post_field.assert_called_once()
+        self.assertEqual(booker.result["status"], "failed")
+        self.assertTrue(booker.stop_event.is_set())
+
+    def test_v12_business_failure_keywords_are_failures(self) -> None:
+        booker = CourtBooker(BookerConfig(cookie="abc"))
+        response = '{"errorcode":1,"message":"超过预约次数"}'
+
+        self.assertEqual(booker.analyze(response), "fail")
+
+    def test_validate_dateadd_keeps_non_negative_cycle_offsets(self) -> None:
+        self.assertTrue(CourtBooker.validate_dateadd(1))
+        self.assertFalse(CourtBooker.validate_dateadd(-1))
+
     def test_dry_run_post_field_does_not_need_network(self) -> None:
         cfg = BookerConfig(
             cookie="abc",

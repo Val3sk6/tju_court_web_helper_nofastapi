@@ -1,4 +1,11 @@
-import { $, statusPill } from './dom.js';
+import {
+  $,
+  statusPill,
+  successDialog,
+  successDialogField,
+  successDialogOrderId,
+  successDialogTime
+} from './dom.js';
 
 const STATUS_TONES = ['state-info', 'state-running', 'state-success', 'state-error', 'state-stopped'];
 
@@ -87,4 +94,28 @@ export function adviceFromPrecheck(data) {
   if (data.hint) return data.hint;
   if (data.status === 'valid') return 'Cookie 预检通过。建议先使用测试模式演练，再切换正式模式。';
   return ERROR_ADVICES[data.status] || data.reason || '预检完成，请根据日志判断下一步。';
+}
+
+export function showSuccessDialog(result = {}) {
+  successDialogField.textContent = valueOrDash(result.field);
+  successDialogTime.textContent = valueOrDash(result.time);
+  successDialogOrderId.textContent = valueOrDash(result.orderid);
+  if (!successDialog.open) successDialog.showModal();
+}
+
+export function bindSuccessDialog(appendLog) {
+  $('closeSuccessDialogBtn').addEventListener('click', () => successDialog.close());
+  $('copyOrderIdBtn').addEventListener('click', async () => {
+    const orderid = successDialogOrderId.textContent;
+    if (!orderid || orderid === '—') {
+      appendLog('旧版响应未返回订单号，无法复制。', 'warn');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(orderid);
+      appendLog('订单号已复制到剪贴板。', 'success');
+    } catch (error) {
+      appendLog('复制订单号失败，请在成功弹窗中手动复制。', 'error');
+    }
+  });
 }

@@ -436,6 +436,54 @@ button.remove { background: rgba(255, 107, 122, 0.14); color: #ffd3d8; border: 1
   word-break: break-word;
   font-size: 14px;
 }
+
+.success-dialog {
+  width: min(480px, calc(100vw - 32px));
+  padding: 28px;
+  color: var(--text);
+  background: var(--card-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.success-dialog::backdrop {
+  background: rgba(10, 32, 58, 0.52);
+  backdrop-filter: blur(6px);
+}
+
+.success-dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  color: white;
+  background: var(--accent);
+  border-radius: 50%;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.success-details {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.success-details > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(0, 91, 172, 0.06);
+  border-radius: 14px;
+}
+
+.success-details dt { color: var(--muted); }
+.success-details dd { margin: 0; font-weight: 800; word-break: break-all; }
+.success-reminder { color: var(--accent); font-weight: 800; }
+.success-dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 #logs:empty::before {
   content: "等待任务日志...";
   color: rgba(220, 232, 255, 0.42);

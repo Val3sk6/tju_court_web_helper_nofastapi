@@ -193,6 +193,22 @@
     </section>
   </main>
 
+  <dialog class="success-dialog" id="successDialog" aria-labelledby="successDialogTitle">
+    <div class="success-dialog-icon" aria-hidden="true">✓</div>
+    <p class="eyebrow">Booking Success</p>
+    <h2 id="successDialogTitle">预约成功！</h2>
+    <dl class="success-details">
+      <div><dt>场地</dt><dd id="successDialogField">—</dd></div>
+      <div><dt>时间</dt><dd id="successDialogTime">—</dd></div>
+      <div><dt>订单号</dt><dd id="successDialogOrderId">—</dd></div>
+    </dl>
+    <p class="success-reminder">请立即打开微信完成支付。</p>
+    <div class="success-dialog-actions">
+      <button type="button" class="secondary" id="copyOrderIdBtn">复制订单号</button>
+      <button type="button" class="primary" id="closeSuccessDialogBtn">我知道了</button>
+    </div>
+  </dialog>
+
   <template id="fieldTemplate">
     <div class="field-row">
       <span class="field-index">#1</span>

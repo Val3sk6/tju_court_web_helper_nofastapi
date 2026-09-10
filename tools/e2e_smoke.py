@@ -72,6 +72,8 @@ def main() -> int:
         assert 'id="statusBoardTitle"' in html
         assert 'id="adviceBox"' in html
         assert 'id="attemptsValue"' in html
+        assert 'id="successDialog"' in html
+        assert 'id="copyOrderIdBtn"' in html
         assert "updateStatusPanel" in app_js
         assert "adviceFromError" in status_js
 
